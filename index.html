@@ -1,0 +1,1983 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Toshkent interaktiv xaritasi</title>
+<!-- Leaflet MAHALLIY (offline uchun) — CDN ga bog'liq emas -->
+<link rel="stylesheet" href="lib/leaflet/leaflet.css">
+<script src="lib/leaflet/leaflet.js"></script>
+<script src="data.js?v=6"></script><style>
+  :root{--acc:#1565c0}
+  html,body{margin:0;padding:0;height:100%;font-family:'Segoe UI',Arial,sans-serif;overflow:hidden;background:#eef1f5}
+  #app{display:flex;height:100%}
+  #side{width:30%;min-width:300px;height:100%;overflow-y:auto;box-sizing:border-box;padding:0;
+    background:linear-gradient(180deg,#f8fafc 0%,#eef2f7 100%);border-right:1px solid #d5dae2;
+    scrollbar-width:none;-ms-overflow-style:none}
+  #side::-webkit-scrollbar{display:none}
+  #map{width:70%;height:100%}
+  #hdr{background:linear-gradient(135deg,#0d47a1,#1976d2);color:#fff;padding:16px 18px 14px;
+    box-shadow:0 2px 8px rgba(13,71,161,.25)}
+  #hdr h2{margin:0;font-size:17px;font-weight:700;letter-spacing:.3px}
+  #hdr .sub{font-size:11.5px;opacity:.85;margin-top:3px}
+  #qwrap{position:relative;margin-top:10px}
+  #q{width:100%;box-sizing:border-box;padding:9px 12px;border:none;border-radius:10px;font-size:13.5px;
+    outline:none;box-shadow:inset 0 1px 3px rgba(0,0,0,.15)}
+  #qres{position:absolute;top:100%;left:0;right:0;background:#fff;border-radius:10px;margin-top:4px;
+    box-shadow:0 6px 24px rgba(0,0,0,.3);z-index:2500;max-height:320px;overflow:auto;display:none}
+  .qitem{padding:8px 12px;font-size:13px;color:#222;cursor:pointer;border-bottom:1px solid #f0f0f0;
+    display:flex;gap:8px;align-items:flex-start}
+  .qitem:hover{background:#eef4fc}
+  .qitem .qi-sub{font-size:11px;color:#888;display:block}
+  /* Region/district line. Names repeat across the country — "Bektemir" is both
+     a settlement in Toshkent and one in Qashqadaryo — so this is what the
+     operator actually reads to pick the right hit. Darker than .qi-sub and
+     sitting directly under the name, because it carries more weight than the
+     category does. */
+  .qitem .qi-area{font-size:11.5px;color:#2b5c9e;font-weight:600;display:block;margin-top:1px}
+  .dtoggles{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+  .dtg{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:14px;border:1.5px solid #d5dae2;
+    background:#fff;cursor:pointer;font-size:11.5px;user-select:none;opacity:.45;transition:.15s}
+  .dtg.on{opacity:1;border-color:#9fb6d4;background:#f4f8fd}
+  .pad{padding:12px 16px}
+  h3.sec{margin:12px 0 8px;font-size:11.5px;text-transform:uppercase;letter-spacing:1px;color:#7a8494;font-weight:700}
+  .toggles{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+  .tg{display:flex;align-items:center;gap:6px;padding:7px 8px;border-radius:9px;border:1.5px solid #d5dae2;
+    background:#fff;cursor:pointer;font-size:11.8px;line-height:1.25;user-select:none;transition:.15s;
+    box-shadow:0 1px 2px rgba(0,0,0,.04);opacity:.55}
+  .tg:hover{border-color:var(--acc)}
+  .tg.on{background:#e3f0fd;border-color:var(--acc);color:#0d47a1;font-weight:600;opacity:1}
+  .tg .sw{display:none}
+  .tg.loading{opacity:.4;pointer-events:none}
+  #info{margin:0 16px 14px;background:#fff;border:1px solid #dfe2e8;border-radius:14px;padding:16px;
+    box-shadow:0 2px 10px rgba(30,50,90,.08)}
+  #info h3{margin:0 0 10px;font-size:16px;line-height:1.35}
+  #info table{border-collapse:collapse;font-size:13px;width:100%}
+  #info td{padding:5px 6px;vertical-align:top;border-bottom:1px solid #f0f2f5}
+  #info tr:last-child td{border-bottom:none}
+  #info td:first-child{font-weight:600;white-space:nowrap;color:#5a6472;width:40%}
+  .coords{margin-top:8px;font-family:Consolas,monospace;font-size:12.5px;background:#f2f4f7;
+    padding:6px 9px;border-radius:8px;display:block;word-break:break-all;border:1px solid #e4e8ee}
+  .ybtn{display:inline-block;margin-top:8px;padding:7px 14px;background:#fc3f1d;color:#fff;border-radius:8px;
+    text-decoration:none;font-size:13px;font-weight:600}
+  .ybtn:hover{background:#e33000}
+  .linebadge{display:inline-block;padding:1px 8px;border-radius:10px;color:#fff;font-size:11.5px;font-weight:600}
+  .muted{color:#888;font-size:12.5px}
+  .lg-row{display:flex;align-items:center;gap:6px;margin:2px 0;font-size:12px}
+  .lg-sw{width:13px;height:13px;border-radius:3px;border:1.5px solid rgba(0,0,0,.5);flex:none}
+  .lg-dot{width:11px;height:11px;border-radius:50%;flex:none}
+  #statusbar{font-size:12px;color:#a33;margin-top:8px;min-height:15px}
+  @keyframes blink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.75)}}
+  @keyframes lineblink{0%,100%{stroke-opacity:1}50%{stroke-opacity:.12}}
+  .blinkline{animation:lineblink 1s infinite}
+  .blink-dot{border-radius:50%;border:1.5px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.6);animation:blink 1.2s infinite}
+  .poi-badge{display:flex;align-items:center;justify-content:center;border-radius:50%;
+    background:#fff;border:1.5px solid #888;box-shadow:0 1px 3px rgba(0,0,0,.45);font-size:8px;line-height:1;
+    animation:blink 1.6s infinite}
+  .poi-shop{animation:none}
+  details.lgd{margin-top:10px;font-size:12px}
+  #dl{position:fixed;top:12px;right:12px;z-index:2000;display:flex;align-items:center;gap:7px;
+    padding:9px 14px;border:none;border-radius:12px;cursor:pointer;background:#ffb300;color:#4e342e;
+    font-weight:700;font-size:13px;box-shadow:0 3px 12px rgba(0,0,0,.35);font-family:inherit}
+  #dl:hover{background:#ffa000}
+  #dl:disabled{opacity:.75;cursor:wait}
+  #cpick{position:fixed;z-index:3000;background:#fff;border:1px solid #c9cdd4;border-radius:14px;
+    box-shadow:0 8px 30px rgba(0,0,0,.3);padding:14px;display:none;width:220px}
+  #cpick h4{margin:0 0 10px;font-size:13.5px}
+  #cpick input[type=color]{width:100%;height:70px;border:none;background:none;cursor:pointer;padding:0}
+  #cpick .hexrow{display:flex;gap:6px;margin-top:8px}
+  #cpick input[type=text]{flex:1;padding:6px 8px;border:1px solid #c9cdd4;border-radius:8px;
+    font-family:Consolas,monospace;font-size:13px;width:80px}
+  #cpick .btns{display:flex;gap:6px;margin-top:10px}
+  #cpick button{flex:1;padding:7px 0;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
+  #cpick .save{background:#1565c0;color:#fff}
+  #cpick .cancel{background:#eceff3;color:#444}
+  #cpick .reset{background:#fdecea;color:#c0392b}
+  /* ---- Diqqatga sazovor joylar — Yandex uslubidagi dumaloq foto-belgilar ---- */
+  .lm-ico{background:none!important;border:none!important}
+  .lm-wrap{position:absolute;left:50%;bottom:0;display:flex;flex-direction:column;align-items:center;
+    transform:translateX(-50%) scale(var(--lmS,1));transform-origin:bottom center;
+    transition:transform .18s ease-out,opacity .25s;cursor:pointer}
+  .lm-ph{width:46px;height:46px;border-radius:50%;border:2.5px solid #fff;box-sizing:border-box;
+    background-size:cover;background-position:center;
+    box-shadow:0 1px 4px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.08);
+    transition:box-shadow .15s}
+  .lm-tail{width:10px;height:6px;margin-top:-1px;background:#fff;
+    clip-path:polygon(0 0,100% 0,50% 100%);
+    filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))}
+  .lm-wrap:hover .lm-ph{box-shadow:0 2px 9px rgba(0,0,0,.5),0 0 0 1px rgba(0,0,0,.1)}
+  /* juda yaqin zoom'da belgi yo'qoladi — binoning o'zi ko'rinadi (2GIS/Yandex kabi) */
+  #map.lm-near .lm-wrap{opacity:0}
+  #map.lm-near .lm-ico{pointer-events:none}
+  .lm-lbl{font-size:11px;font-weight:600;color:#5b4a33;white-space:nowrap;margin-top:2px;line-height:1.1;
+    text-shadow:0 1px 2px #fff,0 -1px 2px #fff,1px 0 2px #fff,-1px 0 2px #fff,0 0 4px #fff}
+  #map.lm-far .lm-lbl{display:none}
+
+  /* ═══ New design: full-screen map + floating glass panels (2026-07-17) ═══════
+     Matches the app prototype: LEFT glass "Қатламлар" card with Material-Symbols
+     icons (not emoji), slide open/close + reopen pill, no zoom control, a
+     translucent icon-less search at top-centre. The map iframe is a separate
+     document, so both fonts are declared here (absolute /fonts/ paths). */
+  @font-face{font-family:'Montserrat';font-weight:100 900;font-display:swap;
+    src:url('/fonts/montserrat-cyrillic-ext.woff2') format('woff2');
+    unicode-range:U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F}
+  @font-face{font-family:'Montserrat';font-weight:100 900;font-display:swap;
+    src:url('/fonts/montserrat-cyrillic.woff2') format('woff2');
+    unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+  @font-face{font-family:'Montserrat';font-weight:100 900;font-display:swap;
+    src:url('/fonts/montserrat-latin.woff2') format('woff2');
+    unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+2122}
+  @font-face{font-family:'Material Symbols Rounded';font-weight:100 700;font-display:block;
+    src:url('/fonts/material-symbols-subset.woff2') format('woff2')}
+  .ms,.ly-ic,.ly-ck,.hdr-ic,.hdr-x{font-family:'Material Symbols Rounded';font-weight:normal;font-style:normal;
+    line-height:1;letter-spacing:normal;text-transform:none;white-space:nowrap;direction:ltr;
+    -webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;user-select:none}
+  body{font-family:'Montserrat',system-ui,sans-serif}
+
+  #app{position:relative;display:block;height:100%}
+  #map{position:absolute;inset:0;width:100%;height:100%;z-index:0}
+
+  /* search — floating, top-centre, translucent (map visible through), no icon */
+  #qwrap{position:absolute;top:16px;left:50%;transform:translateX(-50%);width:min(520px,60vw);z-index:700;margin:0}
+  #q{width:100%;box-sizing:border-box;padding:12px 20px;border:1px solid rgba(255,255,255,.5);border-radius:999px;
+    font-size:14.5px;font-family:'Montserrat',system-ui,sans-serif;color:#0d2f5c;font-weight:600;outline:none;text-align:center;
+    background:rgba(255,255,255,.5);backdrop-filter:blur(9px) saturate(135%);-webkit-backdrop-filter:blur(9px) saturate(135%);
+    box-shadow:0 6px 22px rgba(30,50,90,.12);text-shadow:0 1px 2px rgba(255,255,255,.7)}
+  #q::placeholder{color:#33517a;opacity:.75;font-weight:600}
+  #q:focus{background:rgba(255,255,255,.9);text-shadow:none}
+  #qres{position:absolute;top:100%;left:0;right:0;margin-top:8px;background:rgba(255,255,255,.97);
+    backdrop-filter:blur(12px);border:1px solid #eef0f6;border-radius:16px;box-shadow:0 12px 40px rgba(30,50,90,.22);
+    max-height:340px;overflow:auto;display:none;z-index:701;text-align:left}
+  .qitem{border-bottom:1px solid #f4f5fa;font-family:'Montserrat',system-ui,sans-serif}
+  .qitem:hover{background:#eff4fc}
+
+  /* layers panel — floating glass card, LEFT, with slide animation */
+  #side{position:absolute;top:16px;left:16px;bottom:16px;width:290px;min-width:0;z-index:600;
+    background:rgba(255,255,255,.4);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);
+    border:1px solid rgba(255,255,255,.55);border-radius:20px;box-shadow:0 12px 44px rgba(30,50,90,.18);
+    display:flex;flex-direction:column;overflow:hidden;padding:0;
+    transform-origin:left center;transition:transform .32s cubic-bezier(.4,0,.2,1),opacity .28s ease}
+  #side.closed{transform:translateX(-115%) scale(.97);opacity:0;pointer-events:none}
+  #hdr{background:none;color:#161829;box-shadow:none;display:flex;align-items:center;gap:9px;padding:15px 16px 4px}
+  #hdr .hdr-ic{font-size:20px;color:#3b8ede}
+  #hdr .hdr-t{font-weight:800;font-size:16px;font-family:'Montserrat',system-ui,sans-serif;flex:1}
+  #hdr .hdr-x{font-size:20px;color:#a6abc4;cursor:pointer;padding:2px;border-radius:8px}
+  #hdr .hdr-x:hover{color:#161829;background:#f1f2fa}
+  .hdr-sub{font-size:11.5px;color:#6f7591;padding:0 16px 8px;line-height:1.4}
+  #side .pad{padding:2px 8px 18px;overflow-y:auto;flex:1;scrollbar-width:none;-ms-overflow-style:none}
+  #side .pad::-webkit-scrollbar{width:0;height:0;display:none}
+  #side{max-height:calc(100vh - 32px)}
+  #side .toggles{display:flex;flex-direction:column;gap:2px;grid-template-columns:none}
+  .tg{display:flex;align-items:center;gap:11px;padding:9px 11px;border:none;border-radius:12px;background:none;
+    box-shadow:none;opacity:1;font-size:14px;line-height:1.25;font-family:'Montserrat',system-ui,sans-serif;color:#454a63;font-weight:600}
+  .tg:hover{background:#f3f4fa;border:none}
+  .tg.on{background:#eef4fe;color:#161829;border:none}
+  .tg .ly-ic{font-size:22px;flex:none}
+  .tg .ly-nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tg .ly-ck{font-size:18px;color:#3b8ede;flex:none;display:none}
+  .tg.on .ly-ck{display:block}
+  .tg .sw{display:none}
+  .tg.loading{opacity:.5}
+
+  /* reopen pill (top-left when the panel is closed) */
+  #mapPill{position:absolute;left:16px;top:16px;z-index:601;width:46px;height:46px;border-radius:14px;display:none;
+    align-items:center;justify-content:center;cursor:pointer;color:#3b8ede;
+    background:rgba(255,255,255,.85);backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);
+    border:1px solid rgba(255,255,255,.65);box-shadow:0 8px 30px rgba(30,50,90,.18)}
+  #mapPill.show{display:flex;animation:pillIn .3s ease}
+  #mapPill .ms{font-size:23px}
+  #mapPill:hover{background:#fff}
+  @keyframes pillIn{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:none}}
+
+  /* yuqori o'ng burchakdagi masshtab tugmalari (+/−) — sichqoncha g'ildiragi ishlamaganda ham */
+  #zoomctl{position:absolute;right:16px;top:16px;z-index:601;display:flex;flex-direction:column;gap:8px}
+  #zoomctl button{width:46px;height:46px;border-radius:14px;cursor:pointer;padding:0;
+    border:1px solid rgba(255,255,255,.65);background:rgba(255,255,255,.85);
+    backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);
+    box-shadow:0 8px 30px rgba(30,50,90,.18);color:#3b8ede;font-size:27px;font-weight:600;line-height:1;
+    display:flex;align-items:center;justify-content:center;font-family:'Montserrat',system-ui,sans-serif;
+    transition:background .15s,transform .1s}
+  #zoomctl button:hover{background:#fff}
+  #zoomctl button:active{transform:scale(.93)}
+
+  /* info card — floating glass, BOTTOM-right, wider + larger text so data fits comfortably */
+  #info{position:absolute;bottom:16px;right:16px;width:440px;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);overflow-y:auto;margin:0;z-index:650;border:1px solid rgba(255,255,255,.55);
+    background:rgba(255,255,255,.42);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);
+    border-radius:18px;box-shadow:0 12px 44px rgba(30,50,90,.2);padding:20px 22px;animation:cardIn .28s ease}
+  @keyframes cardIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  #info h3{font-family:'Montserrat',system-ui,sans-serif;font-size:17px;color:#161829;margin:0 0 14px;padding-right:24px}
+  #info table{font-size:14.5px}
+  #info td{color:#454a63;padding:7px 6px}#info td:first-child{color:#6f7591}
+  .info-x{position:absolute;top:12px;right:12px;width:26px;height:26px;border:none;border-radius:50%;
+    background:#f1f2fa;color:#6f7591;cursor:pointer;font-size:12px;line-height:1;font-family:inherit}
+  .info-x:hover{background:#e3e5f0;color:#161829}
+
+  /* strip Leaflet chrome, soften popups */
+  .leaflet-control-zoom{display:none!important}
+  .leaflet-control-attribution{background:rgba(255,255,255,.6)!important;border-radius:8px 0 0 0;font-size:10px}
+  .leaflet-popup-content-wrapper{border-radius:16px;box-shadow:0 12px 40px rgba(30,50,90,.22);font-family:'Montserrat',system-ui,sans-serif}
+</style>
+<script>
+  document.addEventListener('contextmenu', function(e) { e.preventDefault(); }, { capture: true });
+  document.addEventListener('keydown', function(e) {
+    var k = String(e.key || '').toLowerCase();
+    var ctrl = e.ctrlKey || e.metaKey;
+    if (k === 'f12' || (ctrl && e.shiftKey && (k === 'i' || k === 'j' || k === 'c')) || (ctrl && k === 'u')) {
+      e.preventDefault(); e.stopPropagation();
+    }
+  }, { capture: true });
+</script>
+</head>
+<body>
+<div id="app">
+  <div id="map"></div>
+
+  <!-- floating translucent search — top-centre, no icon, map shows through -->
+  <div id="qwrap">
+    <input id="q" placeholder="Қидириш…" autocomplete="off">
+    <div id="qres"></div>
+  </div>
+
+  <!-- collapsed pill (appears when the panel is closed) -->
+  <div id="mapPill" onclick="openLayerPanel()"><span class="ms">layers</span></div>
+
+  <!-- o'ng tomonda masshtab tugmalari — sichqoncha g'ildiragi o'rniga -->
+  <div id="zoomctl">
+    <button id="zin" title="Катталаштириш" aria-label="Катталаштириш">+</button>
+    <button id="zout" title="Кичиклаштириш" aria-label="Кичиклаштириш">−</button>
+  </div>
+
+  <!-- floating glass layers panel — LEFT -->
+  <div id="side">
+    <div id="hdr">
+      <span class="hdr-ic ms">layers</span>
+      <span class="hdr-t">Қатламлар</span>
+      <span class="hdr-x ms" onclick="closeLayerPanel()" title="Ёпиш">close</span>
+    </div>
+    <div class="hdr-sub">Қатламни ёқинг — нуқтани босинг, маълумот чиқади</div>
+    <div class="pad">
+      <div class="toggles" id="toggles"></div>
+      <div id="statusbar"></div>
+    </div>
+  </div>
+
+  <!-- floating glass info card — revealed on click -->
+  <div id="info" style="display:none"></div>
+
+  <!-- kept only so existing JS refs resolve; not shown -->
+  <div style="display:none">
+    <div class="tg" id="bm-osm">OpenStreetMap</div>
+    <div class="dtoggles" id="dtoggles"></div>
+    <div id="lg-districts"></div><div id="lg-metro"></div><span id="appver"></span>
+  </div>
+</div>
+<!-- "Юклаб олиш" tugmasi olib tashlandi: hamma data va tile backend'da oldindan tayyor. -->
+
+<div id="cpick">
+  <h4 id="cp-title">Ранг танлаш</h4>
+  <input type="color" id="cp-wheel">
+  <div class="hexrow"><input type="text" id="cp-hex" placeholder="#ff0000" maxlength="7"></div>
+  <div class="btns">
+    <button class="save" id="cp-save">Сақлаш</button>
+    <button class="cancel" id="cp-cancel">Бекор</button>
+  </div>
+  <div class="btns"><button class="reset" id="cp-reset">Асл рангга қайтариш</button></div>
+  <div class="btns"><button class="save" id="cp-expand" style="display:none;background:#2e7d32">Туманларга ёйиш</button></div>
+</div>
+<script>
+"use strict";
+/* Versiya belgisi — yangi versiya yuklanganini tekshirish uchun (kesh muammosi bo'lsa bilish) */
+const APPVER = "v16 · 15-iyul";
+console.log("XARITA VERSIYA:", APPVER);
+document.addEventListener("DOMContentLoaded",()=>{ const e=document.getElementById("appver"); if(e) e.textContent="· "+APPVER; });
+/* layers panel slide open/close (matches the prototype animation) */
+function closeLayerPanel(){ resetAllLayers(); document.getElementById('side').classList.add('closed'); const p=document.getElementById('mapPill'); if(p) p.classList.add('show'); }
+function openLayerPanel(){ document.getElementById('side').classList.remove('closed'); const p=document.getElementById('mapPill'); if(p) p.classList.remove('show'); }
+/* Closing the panel via X must leave the map exactly as if every active
+   filter had been clicked off by hand first — not just hidden behind the
+   panel with layers still drawn underneath. Defined here (before `layers`
+   exists yet) but only ever called after renderToggles() has populated it. */
+function resetAllLayers(){
+  for(const key in layers){
+    const l=layers[key];
+    if(!l.on) continue;
+    l.on=false;
+    if(l.btn) l.btn.classList.remove('on');
+    map.removeLayer(l.group);
+    if(key==="regions") syncRegionSubgroups(false);
+  }
+}
+/* ============================= HUDUDLAR MA'LUMOTI ============================= */
+const DISTRICTS = [
+ {name:"Қибрай тумани", latin:"Qibray tumani", color:"#e6550d", area:"486 km²", pop:"~354 000 киши (2023)",
+  extra:"Маркази — Қибрай шаҳарчаси. Ботаника боғи, университетлар ҳудуди. Чирчиқ дарёси бўйида."},
+ {name:"Тошкент тумани", latin:"Toshkent tumani", color:"#31a354", area:"449 km²", pop:"~181 000 киши (2023)",
+  extra:"Маркази — Келес. Пойтахтнинг шимоли-ғарбий чеккасида, Қозоғистон чегарасига туташ."},
+ {name:"Зангиота тумани", latin:"Zangiota tumani", color:"#756bb1", area:"568 km²", pop:"~464 000 киши (2023)",
+  extra:"Маркази — Эшонгузар. Зангиота зиёратгоҳи шу ерда."},
+ {name:"Юқори Чирчиқ тумани", latin:"Yuqorichirchiq tumani", color:"#2b8cbe", area:"505 km²", pop:"~135 000 киши (2023)",
+  extra:"Маркази — Янгибозор. Чирчиқ дарёсининг юқори оқимида."},
+ {name:"Ўрта Чирчиқ тумани", latin:"O'rtachirchiq tumani", color:"#c51b8a", area:"440 km²", pop:"~184 000 киши (2023)",
+  extra:"Маркази — Нурафшон яқинида. Чирчиқ дарёсининг ўрта оқими бўйлаб."},
+ {name:"Тошкент шаҳри", latin:"Toshkent shahri", color:"#636363", area:"~531 km²", pop:"~3 040 000 киши (2024)",
+  extra:"Ўзбекистон пойтахти. 12 та тумандан иборат.", city:true},
+ {name:"Бектемир тумани", latin:"Bektemir tumani", color:"#fdae6b", area:"~21 km²", pop:"~78 000 киши", extra:"Жануби-шарқдаги саноат зонаси.", inner:true},
+ {name:"Чилонзор тумани", latin:"Chilonzor tumani", color:"#e41a1c", area:"~30 km²", pop:"~264 000 киши", extra:"Ғафур Ғулом боғи, Бунёдкор стадиони.", inner:true},
+ {name:"Миробод тумани", latin:"Mirobod tumani", color:"#ff7f00", area:"~17 km²", pop:"~152 000 киши", extra:"Темир йўл вокзали, Миробод бозори.", inner:true},
+ {name:"Мирзо Улуғбек тумани", latin:"Mirzo Ulug'bek tumani", color:"#4daf4a", area:"~32 km²", pop:"~325 000 киши", extra:"ТТЗ, Буюк Ипак Йўли, Салар бўйи.", inner:true},
+ {name:"Олмазор тумани", latin:"Olmazor tumani", color:"#984ea3", area:"~34 km²", pop:"~403 000 киши", extra:"Талабалар шаҳарчаси, Миллий университет.", inner:true},
+ {name:"Сергели тумани", latin:"Sergeli tumani", color:"#a65628", area:"~56 km²", pop:"~275 000 киши", extra:"Машина бозори, янги метро йўналиши.", inner:true},
+ {name:"Шайхонтоҳур тумани", latin:"Shayxontohur tumani", color:"#377eb8", area:"~27 km²", pop:"~355 000 киши", extra:"Эски шаҳар, Чорсу бозори, Ташкент Сити.", inner:true},
+ {name:"Учтепа тумани", latin:"Uchtepa tumani", color:"#f781bf", area:"~28 km²", pop:"~292 000 киши", extra:"Фарҳод бозори, ғарбий массивлар.", inner:true},
+ {name:"Яккасарой тумани", latin:"Yakkasaroy tumani", color:"#00bcd4", area:"~15 km²", pop:"~131 000 киши", extra:"Бобур боғи, Мэжик Сити.", inner:true},
+ {name:"Яшнобод тумани", latin:"Yashnobod tumani", color:"#c9b421", area:"~30 km²", pop:"~250 000 киши", extra:"ТАПОиЧ, ҳалқа метро бошланиши.", inner:true},
+ {name:"Юнусобод тумани", latin:"Yunusobod tumani", color:"#66c2a5", area:"~41 km²", pop:"~385 000 киши", extra:"ТВ минора, Минор масжиди.", inner:true},
+ {name:"Янгиҳаёт тумани", latin:"Yangihayot tumani", color:"#e78ac3", area:"~36 km²", pop:"~120 000 киши", extra:"2020 йилда ташкил этилган энг янги туман.", inner:true}
+];
+
+/* Ranglar: SERVER — hamma uchun bitta. Admin o'zgartiradi, hamma ko'radi.
+   Rangni tanlash faqat adminda: operatorда o'ng klик rang palitrasini umuman
+   ochмайди. Bu — сайт эгасининг талаби: карта ранглари бир хил бўлиши керак,
+   ҳар оператор ўзича бўяб юбормаслиги керак.
+
+   The map runs in an iframe from the SAME origin as the app, so it can read the
+   app's own session straight out of localStorage. This flag only decides what
+   is drawn — the server verifies the admin session on every write, so hiding
+   the UI is convenience, not the security boundary. */
+const IS_ADMIN=(function(){ try{ return !!localStorage.getItem("cm_admin_session"); }catch(e){ return false; } })();
+function adminHeaders(){
+  const h={"Content-Type":"application/json"};
+  try{ const a=localStorage.getItem("cm_admin_session"); if(a) h["x-admin-session"]=a; }catch(e){}
+  return h;
+}
+for(const d of DISTRICTS) d.origColor=d.color;
+let SERVER_PREFS={};
+async function loadServerPrefs(){
+  if(!location.protocol.startsWith("http")) return;
+  try{ SERVER_PREFS = await (await fetch("/api/prefs")).json(); }catch(e){}
+}
+/* The server copy is the ONLY source now. localStorage used to be merged in
+   underneath it, which meant an operator who had recoloured a district before
+   kept seeing their private colour instead of the admin's. */
+function colorStore(name){
+  return Object.assign({}, SERVER_PREFS[name]||{});
+}
+function applyDistrictColors(){
+  const saved=colorStore("districtColors");
+  for(const d of DISTRICTS){ if(saved[d.latin]) d.color=saved[d.latin]; }
+}
+
+/* ============================= METRO MA'LUMOTI ============================= */
+const LINES = {
+ chilonzor:{name:"Чилонзор йўналиши", color:"#d32f2f"},
+ uzbekiston:{name:"Ўзбекистон йўналиши", color:"#1565c0"},
+ yunusobod:{name:"Юнусобод йўналиши", color:"#2e7d32"},
+ halqa:{name:"Ҳалқа йўли", color:"#f9a825"}
+};
+function st(n,l,o,h,i,q){return {n:n,line:l,old:o,hud:h,izoh:i,savol:q};}
+const STATIONS = [
+ st("Буюк Ипак йўли","chilonzor","Максим Горький, Горький","Мирзо Улуғбек","ТТЗ ва Луначарский томонга кетиш йўли ва Светлана мехмонхонаси (Саёҳат) томони.","Саёҳат меҳмонхонаси (Светлана) томондамисиз ёки ТТЗга қараб кетиш (САМПИ) йўлидами?"),
+ st("Пушкин","chilonzor","Пушкин","Мирзо Улуғбек","Салар кўприги, Дарҳон ва Мустақиллик шоҳ кўчаси.","Салар кўпригининг қайси томонидасиз? Дарҳонга ўтишдами ёки Горький тарафдами?"),
+ st("Ҳамид Олимжон","chilonzor","Ҳамид Олимжон","Мирзо Улуғбек / Юнусобод","18 қаватли бинолар. NBU ва Эски консерватория чегараси.","Қайси баланд бинонинг тагидасиз? Халқ банки тарафдами ёки Олой бозори тарафдами?"),
+ st("Амир Темур хиёбони","chilonzor","Сквер, Марказ","Юнусобод","Сайилгоҳ (Бродвей), Амир Темур ҳайкали ва Тошкент куранти.","Курант тарафдамисиз ёки Бродвей (Сайилгоҳ кўчаси) тарафдами?"),
+ st("Мустақиллик майдони","chilonzor","Мустақиллик, Площадь","Юнусобод / Шайхонтоҳур","Сенат биноси ва Анҳор канали бўйи.","Фавворалар ва Сенат биноси ёнидами ёки Анҳор канали бўйидами?"),
+ st("Пахтакор","chilonzor","Пахтакор","Шайхонтоҳур","Пахтакор стадиони, Ислом университети.","Стадион томонга чиқиш йўлагидами ёки Навоий кўчаси томондами?"),
+ st("Халқлар дўстлиги","chilonzor","Дружба, Санъат саройи","Чилонзор / Шайхонтоҳур","Санъат саройи, Tashkent City ва Камолон.","Санъат саройи майдонидами ёки Камолон ош (Tashkent City) томондами?"),
+ st("Миллий боғ","chilonzor","Комсомольское озеро","Чилонзор / Яккасарой","Олий Мажлис биноси ва Magic City / Бешёғоч.","Метронинг Олий Мажлис томонидами ёки Magic City (Бешёғоч) томондами?"),
+ st("Новза","chilonzor","Ҳамза","Чилонзор","Олий суд биноси ва Оқтепага бурилиш қисми.","Масжид томондаги чиқишдами ёки Олий суд ва Макро жойлашган томондами?"),
+ st("Мирзо Улуғбек","chilonzor","50 лет СССР, Ғафур Ғулом","Чилонзор","Ғафур Ғулом боғи ва Бунёдкор стадиони.","Ғафур Ғулом боғи тарафга чиқишдами ёки стадион томондами?"),
+ st("Чилонзор","chilonzor","Чилонзор метро","Чилонзор / Учтепа","Қатортол кўчаси ёки Фарҳод бозорига юриш йўналиши.","Супермаркет (Қатортол) кўчасидами ёки 9-мавзе тарафдами?"),
+ st("Олмазор","chilonzor","Собир Раҳимов, Автовокзал","Чилонзор","Тошкент автовокзали, Ипподром йўли ва Домбробод.","Сиз автовокзал ичидамисиз ёки Ипподромга қараб кетиш йўлидами?"),
+ st("Чоштепа","chilonzor","1-бекат (Сергели йўналиши)","Сергели","ДИҚҚАТ! Ҳалқа йўлидаги 1-бекат (Технопарк) билан чалкаштирмаслик керак.","Сиз Сергелига кираверишдаги 1-бекатдами ёки Қўйлиқ йўлидагими?"),
+ st("Ўзгариш","chilonzor","2-бекат","Сергели","Сергели Машина бозорига яқин.","Сергели Машина бозори тарафдаги 2-бекатми?"),
+ st("Сирғали","chilonzor","3-бекат, Ярмарка","Сергели","Сергели деҳқон бозори ва Ярмарка.","Сергели Ярмарка (Деҳқон бозори) тарафдаги 3-бекатми?"),
+ st("Янгиҳаёт","chilonzor","4-бекат","Сергели / Янгиҳаёт","Янги Сергели кўчаси. Янгиҳаёт тумани бошланиши.","Автомобиль йўлининг қайси тарафидасиз: уйлар томондами ёки савдо маркази?"),
+ st("Чинор","chilonzor","5-бекат","Янгиҳаёт","Сергелининг энг охирги бекати (Қипчоқ билан туташади).","Сиз Сергели охиридаги 5-бекатдами ёки Роҳат тарафдаги 5-бекатдами?"),
+ st("Космонавтлар","uzbekiston","Проспект Космонавтов","Миробод / Яккасарой","Космонавтлар хиёбони, Планетарий ва Ўзбекистон аллеяси атрофи.","Космонавтлар хиёбонининг қайси томонидасиз — Ойбек тарафдами ёки Ўзбекистон метроси тарафдами?"),
+ st("Ўзбекистон","uzbekiston","Узбекистан","Шайхонтоҳур / Яккасарой","Фурқат кўчаси, Ўзбекистон метро бекати. Алишер Навоий ва Космонавтлар орасида.","Фурқат боғи томондамисиз ёки Бешёғоч тарафга қараб кетиш йўлидами?"),
+ st("Дўстлик","uzbekiston","Чкалов, ТАПОиЧ","Яшнобод","Авиасозлар кўчаси, Кадишев томонга.","Яшнобод (собиқ ТАПОиЧ) заводи олдидаги Дўстлик метросидами?"),
+ st("Машинасозлар","uzbekiston","Ташсельмаш","Яшнобод","Ашхобод боғи ва Махтумқули кўчаси бошланиши.","Ашхобод боғи тарафга чиқишдами ёки Махтумқули кўчаси йўлида?"),
+ st("Тошкент","uzbekiston","Северный вокзал","Миробод","Темир йўл вокзали, Почтамт биноси.","Вокзал биносининг ичидами ёки ташқарисидаги автотураргоҳдами?"),
+ st("Ойбек","uzbekiston","Ойбек","Миробод","Фармацевтика институти. Минг Ўрик билан бирлашган.","Фармацевтика институти томондаги чиқишдами ёки Ангелс Фуд томондами?"),
+ st("Алишер Навоий","uzbekiston","Навоий","Шайхонтоҳур","Алоқа вазирлиги ва Панорама кинотеатри. Пахтакор билан бирлашган.","Панорама кинотеатри тарафдами ёки Пахтакор стадиони томондами?"),
+ st("Ғафур Ғулом","uzbekiston","Ғафур Ғулом","Шайхонтоҳур","Хадра майдони, Цирк ва нашриёт.","Цирк биноси олдидами ёки Ғафур Ғулом нашриёти томондами?"),
+ st("Чорсу","uzbekiston","ГУМ, Эски Жўва","Шайхонтоҳур / Олмазор","Chorsu меҳмонхонаси, Эски Жўва бозори, Зарқайнар кўчаси.","ГУМ ва меҳмонхона тарафдамисиз ёки Деҳқон бозорининг ичидами?"),
+ st("Тинчлик","uzbekiston","Ғунча, Чиғатой","Олмазор","Ғунча кинотеатри, Чиғатой дарвоза.","Собиқ Ғунча кинотеатри томондами ёки Гўшт бозори тарафдами?"),
+ st("Беруний","uzbekiston","Вузгородок, Студентческий","Олмазор","Миллий Университет, Талабалар шаҳарчаси.","Талабалар шаҳарчаси тарафга чиқишдами ёки Автобуслар шоҳбекати томондами?"),
+ st("Туркистон","yunusobod","Учқаҳрамон йўли","Юнусобод","Юнусобод 11 ва 13-кварталлари. Энг охирги бекат.","Аҳмад Дониш кўчасидаги 11-кварталдами ёки Зенит заводи томондаги йўлдами?"),
+ st("Юнусобод","yunusobod","Универсам, Мегапланет","Юнусобод","Мегапланет савдо маркази, Универсам бозори.","Универсам деҳқон бозори олдидами ёки Мегапланет автотураргоҳидами?"),
+ st("Шаҳристон","yunusobod","Ҳабиб Абдуллаев","Юнусобод","Бодомзор тарафга кетиш ёки Шаҳристон чорраҳаси.","Шаҳристон чорраҳасигами ёки Бодомзор тарафга чиқдингизми?"),
+ st("Бодомзор","yunusobod","Бодомзор, Узэкспоцентр","Юнусобод","Оқтепа лаваш, Халқаро бизнес маркази, Телеминора.","Телеминора ва Аквапарк томондамисиз ёки Оқтепа лаваш томондами?"),
+ st("Минор","yunusobod","Минор, Молия","Юнусобод","Молия институти ва Минор масжиди. Анҳор бўйи.","Молия институти ёнидамисиз ёки дарё (Анҳор) томондами?"),
+ st("Юнус Ражабий","yunusobod","Юнус Ражабий","Юнусобод","Амир Темур хиёбони метроси билан туташган ўтиш бекати.","Амир Темур хиёбони тарафга ўтишдамисиз ёки Юнус Ражабий кўчаси чиқишидами?"),
+ st("Абдулла Қодирий","yunusobod","Олой бозори","Юнусобод","Олой бозорининг орқа томони, Ц-4 мавзеси.","Олой бозорининг кириш қисмидами ёки Ц-4 мавзеси ичидами?"),
+ st("Минг Ўрик","yunusobod","ДОК, Первушка","Юнусобод / Миробод","ДХХ биноси ва Ойбек кўчаси томони. Ойбек билан туташган.","Минг Ўрик чиқишидами ёки Ойбек томонгами?"),
+ st("Технопарк","halqa","1-бекат (Қўйлиқ йўли)","Яшнобод","Дўстлик метросига уланган. Чоштепа билан адаштирмаслик шарт.","Сиз Қўйлиқ-Дўстлик тарафдаги 1-бекатдамисиз ёки Сергелига кираверишдагими?"),
+ st("Яшнобод","halqa","2-бекат","Яшнобод","Авиасозлар бозори (Кадишев) орқаси.","Авиасозлар бозори яқинидаги 2-бекатми ёки Сергелидагими?"),
+ st("Тузел","halqa","3-бекат","Яшнобод","Крестик чорраҳаси.","Крестик (Қорасув) тарафдаги 3-бекатми ёки Сергели тарафдагими?"),
+ st("Олмос","halqa","4-бекат","Яшнобод","Гўзал маҳалласи, Олмос массив.","Олмос массиви тарафдаги 4-бекатдами ёки Сергели Янгиҳаётдагими?"),
+ st("Роҳат","halqa","5-бекат","Бектемир / Яшнобод","Роҳат айланмаси, вилоят чегараси. Чинор билан адашади.","Роҳат айланмаси тарафдаги 5-бекатдами ёки Сергели охиридаги 5-бекатдами?"),
+ st("Янгиобод","halqa","6-бекат","Яшнобод","Янгиобод бозори кўчаси.","Янгиобод (Эски жонзотлар бозори) тарафдамисиз ёки бошқа Янгиободми?"),
+ st("Қўйлиқ","halqa","7-бекат (Қўйлиқ)","Яшнобод / Бектемир / Миробод","Метро Яшнободда, Compass тарафи Бектемирда, Фарғона йўли Мирободда.","Compass супермаркети томондами ёки Деҳқон бозор ичидами?"),
+ st("Матонат","halqa","8-бекат","Сергели / Бектемир","Қўйлиқдан Сергелига ўтиш қисми. Тошкент Халқа йўли.","Қўйлиқдан ўтгандан кейинги биринчи бекатдами?"),
+ st("Қиёт","halqa","9-бекат","Сергели","Қиёт маҳалласи.","Қиёт маҳалласига бурилишдами ёки катта йўл юзидами?"),
+ st("Толариқ","halqa","10-бекат","Сергели","Толариқ маҳалласи ва божхона пости атрофи.","Толариқ маҳалласи томондамисиз ёки аэропорт томонга қараган йўлдами?"),
+ st("Хонобод","halqa","11-бекат","Сергели","Хонобод кўчаси.","Хонобод кўчасининг ичидами ёки метро остидами?"),
+ st("Қурувчилар","halqa","12-бекат","Сергели","Қурувчилар массиви (Строитель).","Строитель массивидаги дўконлар тарафдами ёки уйлар ичидами?"),
+ st("Турон","halqa","13-бекат","Янгиҳаёт","Янгиҳаёт тумани Қипчоқ кўчаси бошланиши.","Янгиҳаёт туманига кириш кўчаси (Турон)дами?"),
+ st("Қипчоқ","halqa","14-бекат","Янгиҳаёт","Ҳалқа йўли Чинор (5-бекат) метроси билан туташади.","Сиз Сергели 5-бекат билан туташган жойдаги энг катта метро бекатидамисиз?")
+];
+
+/* ================= nom normalizatsiya ================ */
+const CYR = {"а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"yo","ж":"j","з":"z","и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s","т":"t","у":"u","ф":"f","х":"x","ц":"ts","ч":"ch","ш":"sh","щ":"sh","ъ":"","ь":"","э":"e","ю":"yu","я":"ya","қ":"q","ғ":"g","ў":"o","ҳ":"h"};
+function norm(s){
+  if(!s) return "";
+  s=String(s).toLowerCase();
+  let out="";
+  for(const ch of s){ out += (CYR[ch]!==undefined?CYR[ch]:ch); }
+  return out.replace(/[ʻʼ'`’‘\-–—.,()«»"×]/g,"").replace(/\s+/g,"").replace(/bekati$/,"");
+}
+const ALIASES = {
+ "buyukipakyoli":["buyukipakyuli"],
+ "xalqlardostligi":["halqlardostligi","xalqlardustligi"],
+ "mingorik":["mingurik"],
+ "qoyliq":["quyliq","kuyluk"],
+ "amirtemurxiyoboni":["amirtemurhiyoboni","amirtemur"],
+ "tolariq":["tolarik","talarik"],
+ "qipchoq":["qipchok","kipchak"],
+ "yunusrajabiy":["yunusradjabi","yunusrajabi"]
+};
+
+/* ============================= XARITA / UI ============================= */
+/* Харита асоси танлови: "yandex" (расмий Yandex Maps API) ёки "osm" (OpenStreetMap).
+   Танлов сақланади. Yandex API ишламай қолса — автоматик OSM'га ўтади. */
+/* Eslatma: Yandex JS API (apikey 2449400e-…) sinab ko'rildi, lekin u boshqa proyeksiyada
+   ishlagani uchun Leaflet chizmalari (metro chiziqlari, chegaralar) buzilib kengayadi.
+   Shu sabab Yandex ham to'g'ridan-to'g'ri tile usulida, EPSG3395 proyeksiyada ulanadi —
+   hammasi aniq ustma-ust tushadi, server keshi orqali tez va offline ishlaydi. */
+/* Karta asosi — OSM. Yandex API esa MA'LUMOT to'ldirish uchun ishlatiladi
+   (qidiruv + yandex_extra.json qatlam boyitmalari), asos sifatida emas. */
+const BASEMAP = "osm";
+const viaServer = location.protocol.startsWith("http");
+
+/* ── Yaqinlashtirish chegarasi — HUDUDGA QARAB ─────────────────────────────────
+   Offline tile to'plami ikki qatlamli qilib yuklanadi (scripts/download_osm_tiles.js):
+     • Butun mamlakat  z13 gacha  — hamma joyda siljib yurish
+     • 14 viloyat markazi + Toshkent, 12 km  z15 gacha  — chuqur zoom
+   Shuning uchun ruxsat etilgan eng katta zoom JOYGA bog'liq: markaz atrofida z15,
+   qolgan hamma joyda z13. (z12–z15 lokal seed; z16+ hozircha yo'q — markazdan
+   tashqarida yo'q tile so'ralmasin uchun chegara joyga qarab qo'yiladi.)
+
+   Chegaradan nariga o'tib bo'lmaydi: g'ildirak, qo'sh-klik, +/- tugmalari —
+   hammasi shu bilan cheklanadi, ya'ni xarita hech qachon yo'qolmaydi. */
+const MAX_Z = 15;                    // z12–z15 lokal seed: absolyut eng katta zoom (offline)
+const BASE_Z = 13;                   // uniform: hamma joyda z15 (smart layered tile — pastda)
+const DEEP_Z = 15;                   // markaz + Toshkent, 12 km — shu yerda to'xtaydi
+/* z16 GA CHIQARISH (markazlar + tuman ichidagi kichik shaharlar): z16 tile'lar
+   BOR bo'lgandagina yoqiladi — hozir map/tiles/osm/16/ deyarli bo'sh (faqat Toshkent
+   ~38%, qolganlari 0). OSM bu IP'ni bloklagan (200 bilan 6987 baytli "Access blocked"
+   rasm qaytaradi), shu sababli bu yerda yuklab bo'lmadi. Tarmoq ochilganda:
+     node scripts/download_osm_tiles.js        # CENTER_ZOOMS'da z16 allaqachon bor
+   yuklab bo'lgach z16 ni yoqish uchun 2 joyni o'zgartiring:
+     (1) shu yerda  MAX_Z = 16  va  DEEP_Z = 16;
+     (2) pastdagi TAFSILOT qatlamida  maxNativeZoom:16  (hozir 15 — z15 cho'ziladi).
+   Aks holda z16'da bo'sh/cho'zilgan tile chiqadi — shu bois hozir xavfsiz z15'da qoldi. */
+const DEEP_RADIUS_KM = 12 + 2;       // +2 km — chegarada zoom titramasligi uchun
+/* download_osm_tiles.js dagi CENTERS bilan bir xil bo'lishi shart — bo'lmasa
+   yuklangan chuqur tile bilan ruxsat etilgan zoom mos kelmaydi. */
+const DEEP_CENTERS = [
+  [41.311,69.279],[41.038,69.341],[40.783,72.344],[39.767,64.421],[40.389,71.786],
+  [40.116,67.842],[41.550,60.631],[41.001,71.673],[40.104,65.373],[38.861,65.789],
+  [39.654,66.960],[40.494,68.784],[37.224,67.278],[42.461,59.611],
+];
+function regionMaxZoom(ll){
+  for(const [la,lo] of DEEP_CENTERS){
+    const dLat=(ll.lat-la)*111, dLon=(ll.lng-lo)*111*Math.cos(la*Math.PI/180);
+    if(Math.sqrt(dLat*dLat+dLon*dLon) <= DEEP_RADIUS_KM) return DEEP_Z;
+  }
+  return BASE_Z;
+}
+
+const map = L.map('map',{
+  zoomControl:false,
+  maxZoom: MAX_Z,          // absolyut shift; haqiqiy chegara quyida joyga qarab qo'yiladi
+  crs: BASEMAP==="yandex"? L.CRS.EPSG3395 : L.CRS.EPSG3857
+}).setView([41.31, 69.25], 10);
+
+/* Embed rejimi (Misollar «Ўзимни синайман» тести ўнг устуни): faqat ko'rish uchun
+   qotirilgan Toshkent xaritasi. ?embed=1 berilsa — barcha boshqaruv elementlari
+   yashiriladi va xaritani surib/zumlab bo'lmaydi (host iframe'da pointer-events:none
+   ham qo'yadi; bu esa zaxira qulf). */
+const EMBED_MODE = /[?&]embed=1\b/.test(location.search);
+if (EMBED_MODE) {
+  try { document.body.classList.add('embed'); } catch (e) {}
+  const _est = document.createElement('style');
+  _est.textContent = 'body.embed #qwrap,body.embed #mapPill,body.embed #side,body.embed #info,body.embed #dl,body.embed #zoomctl{display:none!important;}';
+  document.head.appendChild(_est);
+  ['dragging', 'touchZoom', 'doubleClickZoom', 'scrollWheelZoom', 'boxZoom', 'keyboard', 'tap'].forEach((h) => { try { map[h] && map[h].disable(); } catch (e) {} });
+}
+
+/* O'ng tomondagi +/− tugmalari — masshtabni bosib o'zgartirish (sichqoncha
+   g'ildiragi ishlamasa ham). Zoom chegarasi applyZoomCap orqali baribir hurmat qilinadi. */
+(function () {
+  var zi = document.getElementById('zin'), zo = document.getElementById('zout');
+  if (zi) zi.addEventListener('click', function () { map.zoomIn(); });
+  if (zo) zo.addEventListener('click', function () { map.zoomOut(); });
+})();
+
+/* Xarita markazi qayerda bo'lsa — o'sha yerning chegarasini qo'llaymiz. Markazdan
+   uzoqlashsa (masalan z16'da turib chetga surilsa), setMaxZoom o'zi z13'ga
+   qaytaradi. moveend zoom va suriltirishning ikkalasidan keyin ham ishlaydi. */
+function applyZoomCap(){
+  const m = regionMaxZoom(map.getCenter());
+  if(map.getMaxZoom() !== m) map.setMaxZoom(m);   // joriy zoom undan katta bo'lsa Leaflet o'zi qisqartiradi
+}
+map.on('moveend', applyZoomCap);
+applyZoomCap();
+
+/* STANDALONE PACKAGE: this copy has no local tile cache (the ~1.26GB offline
+   tile set from the main project was intentionally left out — see
+   docs/OFFLINE_TILES.md to add it back). Always uses public tile servers, so
+   an internet connection is required for map imagery. */
+if(BASEMAP==="yandex"){
+  L.tileLayer('https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x={x}&y={y}&z={z}&scale=1&lang=uz_UZ',
+    {maxZoom:MAX_Z, attribution:'&copy; Yandex'}).addTo(map);
+}else{
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {minZoom:5, maxZoom:19, attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+}
+/* Qatlam tartibi: viloyatlar eng pastda, shahar o'rtada, tumanlar eng ustida —
+   shunda tuman ustiga bosilganda aynan TUMAN tanlanadi, shahar emas */
+map.createPane("regionsPane").style.zIndex = 393;
+map.createPane("cityPane").style.zIndex = 396;
+map.createPane("districtsPane").style.zIndex = 399;
+
+const infoEl = document.getElementById('info');
+const statusEl = document.getElementById('statusbar');
+function setStatus(t){ statusEl.textContent = t||''; }
+
+/* CORS beradigan, brauzerdan ishlaydigan mirrorlar (overpass-api.de brauzerni rad etadi) */
+const OVERPASS = [
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter", // eng barqarori
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter"
+  // "https://overpass.osm.jp/api/interpreter" // O'LIK: SSL sertifikati muddati o'tgan
+];
+let mirrorIdx = 0;
+function qhash(s){ let h=0; for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))|0;} return "ovp_"+h; }
+/* ---- IndexedDB doimiy kesh: katta hajm, brauzer yopilsa ham saqlanadi ---- */
+let _idb=null;
+function idbOpen(){
+  return new Promise(res=>{
+    try{
+      const r=indexedDB.open("mapcache",1);
+      r.onupgradeneeded=()=>{ r.result.createObjectStore("kv"); };
+      r.onsuccess=()=>res(r.result);
+      r.onerror=()=>res(null);
+    }catch(e){ res(null); }
+  });
+}
+async function cacheGet(key){
+  if(!_idb) _idb=await idbOpen();
+  if(!_idb) return null;
+  return new Promise(res=>{
+    try{
+      const rq=_idb.transaction("kv","readonly").objectStore("kv").get(key);
+      rq.onsuccess=()=>res(rq.result||null);
+      rq.onerror=()=>res(null);
+    }catch(e){ res(null); }
+  });
+}
+async function cachePut(key,data){
+  if(!_idb) _idb=await idbOpen();
+  if(!_idb) return;
+  try{ _idb.transaction("kv","readwrite").objectStore("kv").put({t:Date.now(),d:data},key); }catch(e){}
+}
+const sleep = ms=>new Promise(r=>setTimeout(r,ms));
+const USE_SERVER = location.protocol.startsWith("http"); // server orqali ochilganda proxy-kesh ishlatiladi
+const DL = {bytes:0}; // yuklab olish tezligini o'lchash uchun
+async function fetchOverpass(query){
+  let lastErr;
+  if(USE_SERVER){
+    try{
+      const r = await fetch("/api/overpass",{method:"POST",headers:{"Content-Type":"text/plain"},body:query});
+      if(r.ok){ const txt=await r.text(); DL.bytes+=txt.length; return JSON.parse(txt); }
+      lastErr = new Error("Server HTTP "+r.status);
+    }catch(e){ lastErr=e; }
+  }
+  for(let round=0; round<3; round++){
+    for(let i=0;i<OVERPASS.length;i++){
+      const url = OVERPASS[(mirrorIdx++) % OVERPASS.length]; // parallel so'rovlar turli serverlarga tarqaladi
+      try{
+        const r = await fetch(url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"data="+encodeURIComponent(query)});
+        if(r.ok){ const txt=await r.text(); DL.bytes+=txt.length; return JSON.parse(txt); }
+        lastErr = new Error("HTTP "+r.status);
+      }catch(e){ lastErr=e; }
+    }
+    await sleep(4000*(round+1));
+  }
+  throw lastErr||new Error("Overpass ishlamadi");
+}
+const _refreshing = new Set();
+async function overpass(query){
+  const key = qhash(query);
+  const cached = await cacheGet(key);
+  if(cached && cached.d){
+    /* stale-while-revalidate: keshni darhol beramiz, eskirgan bo'lsa fonda yangilaymiz */
+    if(Date.now()-cached.t > 24*3600*1000 && !_refreshing.has(key)){
+      _refreshing.add(key);
+      fetchOverpass(query).then(j=>cachePut(key,j)).catch(()=>{}).finally(()=>_refreshing.delete(key));
+    }
+    return cached.d;
+  }
+  const j = await fetchOverpass(query);
+  cachePut(key,j);
+  return j;
+}
+/* Lokal data.js bo'lsa serverga umuman so'rov yubormaydi */
+async function getData(name, query){
+  if(typeof LOCAL_DATA!=="undefined" && LOCAL_DATA[name]) return LOCAL_DATA[name];
+  return overpass(query);
+}
+
+function yandexLink(lat,lng){
+  return `https://yandex.uz/maps/?pt=${lng},${lat}&z=17&l=map&text=${lat}%2C${lng}`;
+}
+function row(k,v){ return v? `<tr><td>${k}</td><td>${v}</td></tr>`:""; }
+
+/* Manzil matni — avval Yandex (server orqali), topilmasa Nominatim (OSM) */
+const addrCache = {};
+async function yandexReverseAddress(lat,lng){
+  // Standalone package: no client-embedded API key — always via the local
+  // server proxy (see server.js). Set YANDEX_GEOCODER_APIKEY there.
+  const js = await (await fetch(`/api/ygeocode?lat=${lat}&lon=${lng}`)).json();
+  const fm = (js.response&&js.response.GeoObjectCollection&&js.response.GeoObjectCollection.featureMember)||[];
+  if(!fm.length) return {addr:"",name:""};
+  const g = fm[0].GeoObject;
+  const md = (g.metaDataProperty&&g.metaDataProperty.GeocoderMetaData)||{};
+  return {addr: md.text||g.description||"", name: g.name||""};
+}
+async function textAddress(lat,lng){
+  const key = lat.toFixed(5)+","+lng.toFixed(5);
+  if(addrCache[key]) return addrCache[key];
+  try{
+    const a = await yandexReverseAddress(lat,lng);
+    if(a.addr){ addrCache[key]=a; return a; }
+  }catch(e){}
+  try{
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=ru,uz`);
+    const j = await r.json();
+    addrCache[key] = {addr: j.display_name||"", name: j.name||""};
+    return addrCache[key];
+  }catch(e){ return {addr:"",name:""}; }
+}
+
+/* Chap panelda ma'lumot ko'rsatish. noName=true bo'lsa nom Nominatim'dan olinadi */
+function showInfo(title, tableHtml, lat, lng, badge, noName){
+  infoEl.style.display = "block";                       // floating card — reveal on click
+  infoEl.innerHTML = `<button class="info-x" onclick="document.getElementById('info').style.display='none'" title="Ёпиш">✕</button>
+    <h3 id="infotitle">${title} ${badge||""}</h3>
+    <table>${tableHtml}</table>
+    ${lat!==undefined? `<span class="coords">📍 Координата: ${lat.toFixed(6)}, ${lng.toFixed(6)}</span>
+    <span class="coords" id="addrline">📫 Манзил аниқланмоқда…</span>
+    <a class="ybtn" target="_blank" href="${yandexLink(lat.toFixed(6),lng.toFixed(6))}">Yandex Maps'да очиш ↗</a>`:""}`;
+  if(lat!==undefined){
+    textAddress(lat,lng).then(a=>{
+      const el=document.getElementById('addrline');
+      if(el) el.textContent = a.addr? "📫 "+a.addr : "📫 Манзил топилмади";
+      if(noName){
+        const tt=document.getElementById('infotitle');
+        const better = a.name || (a.addr? a.addr.split(",")[0] : "");
+        if(tt && better) tt.textContent = title+" — "+better;
+      }
+    });
+  }
+}
+
+/* ---------- point-in-polygon ---------- */
+function inRing(pt, ring){
+  let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const xi=ring[i][1], yi=ring[i][0], xj=ring[j][1], yj=ring[j][0];
+    if(((yi>pt[0])!==(yj>pt[0])) && (pt[1] < (xj-xi)*(pt[0]-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+const districtGeoms = []; // {d, rings:[latlng-ring,...]}
+const regionGeoms = [];   // O'zbekiston viloyatlari ringlari — nuqtalarni UZ ichida filtrlash uchun
+function inUzbekistan(lat,lng){
+  if(!regionGeoms.length) return true; // viloyatlar hali yuklanmagan bo'lsa filtrsiz
+  for(const rings of regionGeoms){ if(rings.some(r=>inRing([lat,lng],r))) return true; }
+  return districtGeoms.some(g=>g.rings.some(r=>inRing([lat,lng],r)));
+}
+function districtOf(lat,lng){
+  for(const g of districtGeoms){ if(!g.d.city && g.rings.some(r=>inRing([lat,lng],r))) return g.d; }
+  for(const g of districtGeoms){ if(g.d.city && g.rings.some(r=>inRing([lat,lng],r))) return g.d; }
+  return null;
+}
+
+/* ---------- relation ways -> yopiq ringlar (o'zimizning stitcher) ---------- */
+function stitchRings(ways){
+  const segs = ways.map(w=>w.map(p=>[p.lat,p.lon])).filter(s=>s.length>1);
+  const rings=[];
+  const eq=(a,b)=>Math.abs(a[0]-b[0])<1e-7 && Math.abs(a[1]-b[1])<1e-7;
+  while(segs.length){
+    let ring = segs.shift();
+    let closed = eq(ring[0], ring[ring.length-1]);
+    let guard = segs.length+2;
+    while(!closed && guard-->0){
+      const tail = ring[ring.length-1];
+      let found=-1, rev=false;
+      for(let i=0;i<segs.length;i++){
+        if(eq(segs[i][0],tail)){found=i;rev=false;break;}
+        if(eq(segs[i][segs[i].length-1],tail)){found=i;rev=true;break;}
+      }
+      if(found<0) break;
+      let nxt = segs.splice(found,1)[0];
+      if(rev) nxt = nxt.slice().reverse();
+      ring = ring.concat(nxt.slice(1));
+      closed = eq(ring[0], ring[ring.length-1]);
+    }
+    if(ring.length>3) rings.push(ring);
+  }
+  return rings;
+}
+
+/* ============================= QIDIRUV ============================= */
+/* Result rows are built as an HTML string. The text in them is not ours: OSM
+   names carry & and quotes, and the Nominatim/Yandex display_name is a third
+   party's string entirely. Both were being injected raw. */
+function esc(s){
+  return String(s==null?"":s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+const SEARCHABLE = []; // {keys:[norm...], icon, title, sub, area, fire}
+/* `area` is the "Viloyat / Tuman" the object sits in, and it is the whole point
+   of the result list: place names repeat all over the country, so a search for
+   "Bektemir" returns a settlement in Toshkent AND one in Qashqadaryo with the
+   same name and the same category. It comes pre-computed from search.json (see
+   scripts/build_search_areas.js) — resolving it in the browser would mean
+   loading 4 MB of boundary polygons before the first search could answer. */
+function addSearchable(names, icon, title, sub, fire, area){
+  SEARCHABLE.push({keys:names.filter(Boolean).map(norm), icon, title, sub, area:area||"", fire});
+}
+const qEl=document.getElementById('q'), qRes=document.getElementById('qres');
+let qTimer=null, qSeq=0;
+qEl.addEventListener('input',()=>{ clearTimeout(qTimer); qTimer=setTimeout(runSearch,350); });
+qEl.addEventListener('keydown',e=>{ if(e.key==="Enter"){ clearTimeout(qTimer); runSearch(); } });
+document.addEventListener('click',e=>{ if(!e.target.closest('#qwrap')) qRes.style.display="none"; });
+let searchPin=null;
+/* Yandex Geocoder — OSMda belgilanmagan joylarni ham topadi (server orqali proksi) */
+async function yandexGeocode(q){
+  const js=await (await fetch(`/api/ygeocode?q=${encodeURIComponent(q)}`)).json();
+  const fm=(js.response&&js.response.GeoObjectCollection&&js.response.GeoObjectCollection.featureMember)||[];
+  return fm.map(f=>{
+    const g=f.GeoObject, p=(g.Point&&g.Point.pos||"0 0").split(" ");
+    const md=(g.metaDataProperty&&g.metaDataProperty.GeocoderMetaData)||{};
+    return {lat:+p[1], lon:+p[0], name:g.name,
+      display_name:[g.name, g.description].filter(Boolean).join(", "),
+      type:md.kind||"", category:"Yandex", src:"Yandex Geocoder"};
+  }).filter(r=>r.lat&&r.lon);
+}
+async function runSearch(){
+  const raw=qEl.value.trim();
+  if(raw.length<2){ qRes.style.display="none"; return; }
+  const seq=++qSeq;
+  const nq=norm(raw);
+  const local = SEARCHABLE.filter(s=>s.keys.some(k=>k.includes(nq))).slice(0,7);
+  renderResults(local, null);
+  /* Yandex + Nominatim PARALLEL — istalgan til/alifbo; OSMda yo'g'i Yandexdan chiqadi */
+  const jobs=[
+    yandexGeocode(raw),
+    fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(raw)}&format=jsonv2&limit=6&viewbox=55.9,45.7,73.3,37.1&bounded=1&countrycodes=uz&accept-language=ru,uz`).then(r=>r.json())
+  ];
+  const rs=await Promise.allSettled(jobs);
+  if(seq!==qSeq) return;
+  const remote=[];
+  if(rs[0].status==="fulfilled") remote.push(...rs[0].value);
+  if(rs[1].status==="fulfilled") remote.push(...rs[1].value);
+  renderResults(local, remote.slice(0,9));
+}
+function renderResults(local, remote){
+  let html="";
+  for(let i=0;i<local.length;i++){
+    /* Name, then WHERE it is, then what it is. Identical names are common
+       across the country, so the middle line is what tells two hits apart. */
+    const a=local[i].area;
+    html+=`<div class="qitem" data-k="l${i}">${local[i].icon} <span><b>${esc(local[i].title)}</b>`+
+      (a?`<span class="qi-area">${esc(a)}</span>`:"")+
+      `<span class="qi-sub">${esc(local[i].sub)} — харитадаги объект</span></span></div>`;
+  }
+  if(remote){
+    for(let i=0;i<remote.length;i++){
+      const nm=remote[i].display_name.split(",").slice(0,2).join(",");
+      html+=`<div class="qitem" data-k="r${i}">📍 <span><b>${esc(remote[i].name||nm)}</b><span class="qi-sub">${esc(remote[i].display_name.split(",").slice(1,4).join(","))}</span></span></div>`;
+    }
+  }
+  qRes.innerHTML = html || `<div class="qitem">Ҳеч нарса топилмади…</div>`;
+  qRes.style.display="block";
+  qRes.querySelectorAll('.qitem[data-k]').forEach(el=>{
+    el.onclick=()=>{
+      const k=el.getAttribute('data-k');
+      qRes.style.display="none";
+      if(k[0]==="l"){ local[+k.slice(1)].fire(); }
+      else{
+        const r=remote[+k.slice(1)];
+        const lat=+r.lat, lon=+r.lon;
+        map.flyTo([lat,lon],Math.min(map.getMaxZoom(),17),{duration:.9});
+        if(searchPin) map.removeLayer(searchPin);
+        searchPin=L.marker([lat,lon]).addTo(map);
+        showInfo("📍 "+(r.name||r.display_name.split(",")[0]),
+          row("Тури",(r.type||"")+(r.category?" ("+r.category+")":""))+row("Манба",r.src||"Nominatim / OpenStreetMap"),
+          lat,lon);
+      }
+    };
+  });
+}
+
+/* ============================= QATLAMLAR TIZIMI ============================= */
+const layers = {}; // key -> {group, label, loaded, loader, on}
+function defLayer(key,label,defaultOn,loader){
+  if(loader) loader.layerKey=key;   // offline geodata fayl kaliti
+  layers[key]={group:L.layerGroup(), label, loaded:false, loader, on:defaultOn};
+}
+/* Material Symbols icon + colour per layer — matches the app prototype's
+   getMapLayers(), replacing the old emoji labels. */
+const LAYER_META = {
+  regions:{ic:'map',c:'#3b8ede'}, districts:{ic:'location_city',c:'#8a5cf5'},
+  metrolines:{ic:'route',c:'#e8506a'}, metrostations:{ic:'directions_subway',c:'#0d9488'},
+  kpp:{ic:'security',c:'#f08a3c'}, ypx:{ic:'local_police',c:'#2563eb'},
+  guard:{ic:'shield',c:'#64748b'}, bridges:{ic:'commit',c:'#7c3aed'},
+  bozorlar:{ic:'storefront',c:'#f59e0b'}, malls:{ic:'shopping_cart',c:'#2fb98a'},
+  parks:{ic:'park',c:'#16a34a'}, hospitals:{ic:'local_hospital',c:'#e11d48'},
+  edu:{ic:'school',c:'#0891b2'}, mosques:{ic:'mosque',c:'#0d9488'},
+  kruglar:{ic:'adjust',c:'#64748b'}, kesishmalar:{ic:'add_road',c:'#7c3aed'},
+  food:{ic:'restaurant',c:'#f08a3c'}, kvartallar:{ic:'apartment',c:'#3b8ede'},
+  mahallalar:{ic:'holiday_village',c:'#b45309'}, shaharchalar:{ic:'cottage',c:'#5a6bf0'},
+  hotels:{ic:'hotel',c:'#8a5cf5'}, yangitoshkent:{ic:'location_on',c:'#16a34a'},
+};
+function renderToggles(){
+  const el=document.getElementById('toggles');
+  el.innerHTML="";
+  for(const key in layers){
+    const l=layers[key];
+    const m=LAYER_META[key]||{ic:'layers',c:'#8a90ab'};
+    const name=String(l.label||key).replace(/^[^\p{L}]+/u,'').trim(); // drop the old emoji prefix
+    const btn=document.createElement('div');
+    btn.className="tg"+(l.on?" on":"");
+    btn.innerHTML=`<span class="ly-ic" style="color:${m.c}">${m.ic}</span><span class="ly-nm">${name}</span><span class="ly-ck">check_circle</span>`;
+    btn.onclick=()=>toggleLayer(key,btn);
+    el.appendChild(btn);
+    l.btn=btn;
+  }
+}
+/* Qatlam holatini localStorage'ga yozadigan saveLayerStates() olib tashlandi:
+   karta har ochilganda faqat «Вилоятлар» yoqiq bo'lishi kerak, ya'ni o'sha
+   holatni hech kim o'qimaydi. Yozib qo'yilgan, lekin o'qilmaydigan holat qolsa —
+   keyinchalik kimdir uni yana tiklab yuborishi mumkin edi. */
+function syncRegionSubgroups(on){
+  if(typeof REGIONS==="undefined") return;
+  for(const r of REGIONS){
+    if(!r._subGroup) continue;
+    if(!on) map.removeLayer(r._subGroup);
+    else if(r.expanded) map.addLayer(r._subGroup);
+  }
+}
+async function toggleLayer(key,btn){
+  const l=layers[key];
+  if(l.on){
+    l.on=false; btn.classList.remove('on'); map.removeLayer(l.group);
+    if(key==="regions") syncRegionSubgroups(false);
+    if(key==="districts") collapseAutoExpandedDistricts();
+    return;
+  }
+  l.on=true; btn.classList.add('on');
+  if(key==="regions"){ syncRegionSubgroups(true); if(addRepublicBoxes()) refreshPoiLayers(); }
+  if(!l.loaded){
+    btn.classList.add('loading'); setStatus(l.label+" юкланмоқда…");
+    try{ await l.loader(l.group); l.loaded=true; setStatus(""); }
+    catch(e){ setStatus(l.label+" хатоси: "+e.message); console.error(e); }
+    btn.classList.remove('loading');
+  }
+  if(l.on){ l.group.addTo(map); refreshViewports(); }
+  /* «Туманлар» — Toshkent tumanlari bilan cheklanmasin: hamma viloyat ham
+     tumanlarga yoyilsin (bir xil bosish/rang xatti-harakati bilan). */
+  if(key==="districts" && l.on){
+    btn.classList.add('loading'); setStatus("Барча вилоят туманлари юкланмоқда…");
+    try{ await expandAllRegionDistricts(); }
+    catch(e){ setStatus("Туманлар хатоси: "+e.message); console.error(e); }
+    btn.classList.remove('loading');
+  }
+  /* Yangi Toshkent yoqilganda — hududiga uchamiz, qalin qizil chegara ko'rinadi */
+  if(key==="yangitoshkent" && l.on && loadYangiToshkent.bounds)
+    map.flyToBounds(loadYangiToshkent.bounds,{padding:[30,30],duration:.9});
+}
+async function enable(key){
+  const l=layers[key];
+  if(!l.loaded){
+    l.btn.classList.add('loading'); setStatus(l.label+" юкланмоқда…");
+    try{ await l.loader(l.group); l.loaded=true; setStatus(""); }
+    catch(e){ setStatus(l.label+" хатоси: "+e.message); console.error(e); }
+    l.btn.classList.remove('loading');
+  }
+  if(l.on){ l.group.addTo(map); refreshViewports(); }
+}
+
+/* ============================= 1. TUMANLAR ============================= */
+let hiddenD = new Set(DISTRICTS.filter(d=>d.defaultOff).map(d=>d.latin));
+try{
+  const st = localStorage.getItem("hiddenDistricts_v2");
+  if(st) hiddenD = new Set(JSON.parse(st));
+}catch(e){}
+function addDistrictPolygon(d, latlngs, group){
+  const poly = L.polygon(latlngs,{pane:d.city?"cityPane":"districtsPane",color:d.color,weight:2,opacity:.95,fillColor:d.color,fillOpacity:d.city?.03:.15});
+  d._poly = poly;
+  poly.on("contextmenu",e=>{ openColorPicker(d, e.originalEvent); L.DomEvent.stop(e); });
+  poly.on("click",e=>{
+    map.flyToBounds(poly.getBounds(),{padding:[20,20],duration:.8});
+    showInfo(d.name,
+      row("Лотинча",d.latin)+row("Умумий майдони",d.area)+row("Аҳоли сони",d.pop)+row("Қўшимча",d.extra),
+      e.latlng.lat,e.latlng.lng,
+      `<span class="lg-sw" style="display:inline-block;background:${d.color}55;border-color:${d.color}"></span>`);
+    L.DomEvent.stop(e);
+  });
+  poly.on("mouseover",()=>poly.setStyle({fillOpacity:.3}));
+  poly.on("mouseout",()=>poly.setStyle({fillOpacity:d.city?.03:.15}));
+  d._group = group;
+  if(!hiddenD.has(d.latin)) group.addLayer(poly);
+  // These are the Toshkent-city districts from data.js. "Bektemir Tumani" reads
+  // exactly like the settlement of the same name elsewhere, so it gets the same
+  // region line as the indexed results.
+  addSearchable([d.name,d.latin], "🗺", d.name, "туман", ()=>{
+    const c=poly.getBounds().getCenter();
+    poly.fire("click",{latlng:c});
+  }, "Toshkent");
+}
+function renderDistrictToggles(){
+  const el=document.getElementById('dtoggles');
+  el.innerHTML="";
+  for(const d of DISTRICTS){
+    if(!d._poly) continue;
+    const b=document.createElement('div');
+    b.className="dtg"+(hiddenD.has(d.latin)?"":" on");
+    b.innerHTML=`<span class="lg-dot" style="width:9px;height:9px;background:${d.color}"></span>${d.name}`;
+    b.onclick=()=>{
+      if(hiddenD.has(d.latin)){ hiddenD.delete(d.latin); d._group.addLayer(d._poly); }
+      else { hiddenD.add(d.latin); d._group.removeLayer(d._poly); }
+      try{ localStorage.setItem("hiddenDistricts_v2",JSON.stringify([...hiddenD])); }catch(e){}
+      renderDistrictToggles();
+    };
+    el.appendChild(b);
+  }
+}
+async function loadDistricts(group){
+  /* 1-usul: lokal data.js dagi tayyor GeoJSON chegaralar */
+  if(typeof LOCAL_DATA!=="undefined" && LOCAL_DATA.districts_gj){
+    for(const item of LOCAL_DATA.districts_gj){
+      const d = DISTRICTS.find(x=>x.latin===item.latin);
+      if(!d || !item.g) continue;
+      d._done = true;
+      const polys = item.g.type==="Polygon"? [item.g.coordinates] : item.g.coordinates;
+      const latlngs = polys.map(poly=>poly.map(ring=>ring.map(c=>[c[1],c[0]])));
+      for(const p of latlngs) districtGeoms.push({d:d, rings:[p[0]]});
+      addDistrictPolygon(d, latlngs, group);
+    }
+    renderDistrictLegend();
+    renderDistrictToggles();
+    return;
+  }
+  /* 2-usul: Overpass */
+  const q = `[out:json][timeout:90];
+    (
+      relation(2216724);
+      relation["boundary"="administrative"]["admin_level"="6"]["name"~"Qibray|Zangiota|Yuqorichirchiq|O.rtachirchiq|^Toshkent [Tt]umani|Bektemir|Chilonzor|Mirobod|Mirzo Ulug|Olmazor|Sergeli|Shay[xh]onto[xh]ur|Uchtepa|Yakkasaroy|Yashnobod|Yunusobod|Yangi ?[Hh]ayot",i](40.8,68.6,41.75,70.0);
+    );
+    out geom;`;
+  const data = await getData("districts", q);
+  for(const rel of data.elements){
+    if(rel.type!=="relation") continue;
+    const t = rel.tags||{};
+    const nm = norm(t["name:uz"]||t.name||"");
+    const d = DISTRICTS.find(x=>{
+      if(x._done) return false;
+      const short = norm(x.latin).replace(/tumani$|shahri$/,"");
+      if(x.latin==="Toshkent shahri") return (nm==="toshkent"||nm==="toshkentshahri") ;
+      if(x.latin==="Toshkent tumani") return nm==="toshkenttumani";
+      if(nm.startsWith("yangitoshkent")) return false;
+      if(x.latin==="Shayxontohur tumani") return nm.includes("shayxontohur")||nm.includes("shayhontohur");
+      if(x.latin==="Yangihayot tumani") return nm.includes("yangihayot")||nm.includes("yangi hayot".replace(" ",""));
+      return nm.includes(short);
+    });
+    if(!d) continue;
+    d._done=true;
+    const outerWays = (rel.members||[]).filter(m=>m.type==="way"&&m.geometry&&m.role!=="inner").map(m=>m.geometry);
+    const innerWays = (rel.members||[]).filter(m=>m.type==="way"&&m.geometry&&m.role==="inner").map(m=>m.geometry);
+    const outers = stitchRings(outerWays);
+    const inners = stitchRings(innerWays);
+    if(!outers.length) continue;
+    districtGeoms.push({d:d, rings:outers});
+    const latlngs = outers.map(o=>{
+      const holes = inners.filter(h=>inRing(h[0],o));
+      return [o].concat(holes);
+    });
+    addDistrictPolygon(d, latlngs, group);
+  }
+  renderDistrictLegend();
+  renderDistrictToggles();
+}
+function renderDistrictLegend(){
+  document.getElementById('lg-districts').innerHTML =
+    DISTRICTS.map(d=>`<div class="lg-row"><span class="lg-sw" style="background:${d.color}33;border-color:${d.color}"></span>${d.name}</div>`).join("");
+}
+
+/* ============================= RANG TANLAGICH (o'ng klik) ============================= */
+const cp = {el:document.getElementById('cpick'), d:null};
+function openColorPicker(d, ev, expandable){
+  cp.d = d;
+  /* Non-admins never see a colour control. The popup still opens for them when
+     it carries the expand/collapse action, because that is navigation, not
+     styling — dropping it would quietly take a working feature away. When there
+     is nothing but colour in it, right-click does nothing at all. */
+  const hasAction = !!(expandable || d._parentRegion);
+  if(!IS_ADMIN && !hasAction) return;
+  const show=(el,on)=>{ if(el) el.style.display = on? "" : "none"; };
+  // Hide the colour controls one by one, not by row: Сақлаш shares its row with
+  // Бекор, and hiding the row would leave the popup with no way to close.
+  show(document.getElementById('cp-wheel'), IS_ADMIN);
+  show(document.getElementById('cp-hex').parentElement, IS_ADMIN);   // .hexrow
+  show(document.getElementById('cp-save'), IS_ADMIN);
+  show(document.getElementById('cp-reset').parentElement, IS_ADMIN); // its own row
+  document.getElementById('cp-title').textContent = (IS_ADMIN? "🎨 " : "")+d.name;
+  document.getElementById('cp-wheel').value = d.color;
+  document.getElementById('cp-hex').value = d.color;
+  const xb=document.getElementById('cp-expand');
+  if(expandable){
+    xb.style.display="block";
+    xb.textContent = d.expanded? "Туманларни йиғиш" : "Туманларга ёйиш";
+    xb.onclick=async ()=>{
+      cp.el.style.display="none";
+      if(d.expanded) collapseRegion(d);
+      else { try{ await expandRegion(d); }catch(e){ setStatus("Ёйишда хато: "+e.message); } }
+    };
+  } else if(d._parentRegion){
+    /* Tuman (viloyat ичидаги) — o'ng klikда viloyat туманларини YIG'ISH tugmasi */
+    xb.style.display="block";
+    xb.textContent = "Туманларни йиғиш";
+    xb.onclick=()=>{ cp.el.style.display="none"; collapseRegion(d._parentRegion); };
+  } else xb.style.display="none";
+  const w=230,h=300;
+  let x=Math.min(ev.clientX, window.innerWidth-w-10), y=Math.min(ev.clientY, window.innerHeight-h-10);
+  cp.el.style.left=x+"px"; cp.el.style.top=y+"px"; cp.el.style.display="block";
+}
+document.getElementById('cp-wheel').addEventListener('input',e=>{
+  document.getElementById('cp-hex').value=e.target.value;
+  previewColor(e.target.value);
+});
+document.getElementById('cp-hex').addEventListener('input',e=>{
+  const v=e.target.value.trim();
+  if(/^#[0-9a-fA-F]{6}$/.test(v)){ document.getElementById('cp-wheel').value=v; previewColor(v); }
+});
+function previewColor(c){
+  if(cp.d && cp.d._poly) cp.d._poly.setStyle({color:c, fillColor:c});
+}
+function applyColor(c, persist){
+  const d=cp.d; if(!d) return;
+  if(persist && !IS_ADMIN) return;          // operator cannot repaint anything
+  d.color=c;
+  if(d._poly) d._poly.setStyle({color:c, fillColor:c});
+  renderDistrictLegend();
+  if(persist){
+    const store=d._store||"districtColors", id=d._id||d.latin;
+    const val = (c===d.origColor)? null : c;   // back to original = drop the override
+    /* Server only. The colour is a shared setting, so writing a private copy to
+       localStorage as well only created a way for one browser to disagree with
+       everyone else. A failed save now says so instead of looking saved. */
+    if(USE_SERVER){
+      fetch("/api/prefs",{method:"POST",headers:adminHeaders(),
+        body:JSON.stringify({store:store,id:id,color:val})})
+        .then(r=>r.json().catch(()=>({ok:false})))
+        .then(j=>{ if(!j||j.ok===false) throw new Error((j&&j.error)||"saqlanmadi"); })
+        .catch(e=>{ setStatus("Рангни сақлаб бўлмади: "+(e.message||e)); });
+      SERVER_PREFS[store]=SERVER_PREFS[store]||{};
+      if(val===null) delete SERVER_PREFS[store][id]; else SERVER_PREFS[store][id]=val;
+    }
+  }
+}
+document.getElementById('cp-save').onclick=()=>{
+  const v=document.getElementById('cp-hex').value.trim();
+  if(/^#[0-9a-fA-F]{6}$/.test(v)) applyColor(v,true);
+  cp.el.style.display="none";
+};
+document.getElementById('cp-cancel').onclick=()=>{
+  if(cp.d&&cp.d._poly) cp.d._poly.setStyle({color:cp.d.color, fillColor:cp.d.color});
+  cp.el.style.display="none";
+};
+document.getElementById('cp-reset').onclick=()=>{
+  if(cp.d){ applyColor(cp.d.origColor,true); }
+  cp.el.style.display="none";
+};
+map.on("click",()=>{ if(cp.el.style.display==="block"){ document.getElementById('cp-cancel').onclick(); } clearOutline(); });
+
+/* ============================= VILOYATLAR (butun respublika) ============================= */
+const REGIONS = [
+ {key:"qoraqalpog", name:"Қорақалпоғистон Республикаси", color:"#8d6e63", area:"166 600 km²", pop:"~2 000 000 киши", extra:"Пойтахти — Нукус. Орол денгизи, Устюрт платоси. Ўзбекистон ҳудудининг ~40%."},
+ {key:"andijon", name:"Андижон вилояти", color:"#ef5350", area:"4 303 km²", pop:"~3 300 000 киши", extra:"Маркази — Андижон. Фарғона водийсининг шарқий қисми, энг зич жойлашган вилоят."},
+ {key:"buxoro", name:"Бухоро вилояти", color:"#ffa726", area:"40 321 km²", pop:"~2 000 000 киши", extra:"Маркази — Бухоро. Қадимий шаҳар, газ конлари."},
+ {key:"fargona", name:"Фарғона вилояти", color:"#66bb6a", area:"7 005 km²", pop:"~4 000 000 киши", extra:"Маркази — Фарғона. Водийнинг жанубий қисми, Қўқон ва Марғилон шаҳарлари."},
+ {key:"jizzax", name:"Жиззах вилояти", color:"#26a69a", area:"21 179 km²", pop:"~1 500 000 киши", extra:"Маркази — Жиззах. Зомин миллий боғи шу ерда."},
+ {key:"xorazm", name:"Хоразм вилояти", color:"#29b6f6", area:"6 464 km²", pop:"~2 000 000 киши", extra:"Маркази — Урганч. Хива шаҳри — очиқ осмон остидаги музей."},
+ {key:"namangan", name:"Наманган вилояти", color:"#7e57c2", area:"7 181 km²", pop:"~3 000 000 киши", extra:"Маркази — Наманган. Водийнинг шимолий қисми."},
+ {key:"navoiy", name:"Навоий вилояти", color:"#8d6e63", area:"111 095 km²", pop:"~1 050 000 киши", extra:"Маркази — Навоий. Қизилқум чўли, Мурунтов олтин кони, НКМК."},
+ {key:"qashqadaryo", name:"Қашқадарё вилояти", color:"#ec407a", area:"28 570 km²", pop:"~3 500 000 киши", extra:"Маркази — Қарши. Шўртан газ-кимё мажмуаси, Китоб-Шаҳрисабз."},
+ {key:"samarqand", name:"Самарқанд вилояти", color:"#42a5f5", area:"16 773 km²", pop:"~4 100 000 киши", extra:"Маркази — Самарқанд. Регистон, Гўри Амир — энг кўп аҳолили вилоятлардан."},
+ {key:"sirdaryo", name:"Сирдарё вилояти", color:"#9ccc65", area:"4 276 km²", pop:"~900 000 киши", extra:"Маркази — Гулистон. Мирзачўл дашти."},
+ {key:"surxondaryo", name:"Сурхондарё вилояти", color:"#ff7043", area:"20 100 km²", pop:"~2 800 000 киши", extra:"Маркази — Термиз. Энг жанубий вилоят, Афғонистон чегараси."},
+ {key:"toshkentviloyati", name:"Тошкент вилояти", color:"#78909c", area:"15 258 km²", pop:"~3 000 000 киши", extra:"Маркази — Нурафшон. Чирчиқ, Ангрен, Олмалиқ, Бекобод саноат шаҳарлари."}
+];
+/* Yoyilgan viloyatlar — FAQAT shu seans uchun. Ilgari localStorage'da saqlanardi,
+   ya'ni bir marta yoyilgan begona viloyat har ochilganda qaytib kelaverardi. Endi
+   karta har ochilganda foydalanuvchining O'Z viloyati yoyiladi, boshqasi emas. */
+let expandedRegions = new Set();
+try{ localStorage.removeItem("expandedRegions"); }catch(e){}
+
+/* ==================== FOYDALANUVCHINING VILOYATI ====================
+   Karta — asosiy ilova bilan bir xil origin'dagi iframe, shuning uchun uning
+   localStorage'ini to'g'ridan-to'g'ri o'qiy oladi (IS_ADMIN ham shu yo'ldan
+   boradi). Kirgan hisob cm_cur'da turadi: {fio, op, region, role, login}.
+
+   region maydoni bazaga QO'LDA yoziladi (Telegram bot yoki admin paneli), ya'ni
+   "Samarqand", "Самарқанд", "Самаркандская область" — hammasi uchrashi mumkin.
+   Shuning uchun taqqoslash norm() orqali: kirill lotinga o'giriladi, apostrof va
+   probel tashlanadi. Ikkala tomon bir xil funksiyadan o'tgani uchun jadvalda
+   translitni qo'lda yozish shart emas.
+
+   Viloyat markazlari ham ro'yxatda: admin "Qarshi" deb yozsa ham Qashqadaryo
+   topiladi. */
+const TOSHKENT_CITY = "toshkentshahri";
+const REGION_NAMES = {
+  qoraqalpog:       ["Qoraqalpogʻiston","Qaraqalpaqstan","Қорақалпоғистон","Каракалпакстан","Nukus","Нукус"],
+  andijon:          ["Andijon","Андижон","Андижан"],
+  buxoro:           ["Buxoro","Бухоро","Бухара","Bukhara"],
+  fargona:          ["Fargʻona","Фарғона","Фергана","Ferghana"],
+  jizzax:           ["Jizzax","Жиззах","Джизак"],
+  xorazm:           ["Xorazm","Хоразм","Хорезм","Urganch","Урганч"],
+  namangan:         ["Namangan","Наманган"],
+  navoiy:           ["Navoiy","Навоий","Навои"],
+  qashqadaryo:      ["Qashqadaryo","Қашқадарё","Кашкадарья","Qarshi","Қарши","Карши"],
+  samarqand:        ["Samarqand","Самарқанд","Самарканд","Samarkand"],
+  sirdaryo:         ["Sirdaryo","Сирдарё","Сырдарья","Guliston","Гулистон"],
+  surxondaryo:      ["Surxondaryo","Сурхондарё","Сурхандарья","Termiz","Термиз"],
+  toshkentviloyati: ["Toshkent viloyati","Тошкент вилояти","Ташкентская область","Nurafshon","Нурафшон"],
+  [TOSHKENT_CITY]:  ["Toshkent","Тошкент","Ташкент","Tashkent","Toshkent shahri","Тошкент шаҳри"],
+};
+const REGION_LOOKUP = (function(){
+  const m = new Map();
+  for(const key in REGION_NAMES)
+    for(const nm of REGION_NAMES[key]){ const n=norm(nm); if(n && !m.has(n)) m.set(n,key); }
+  return m;
+})();
+/* Uzunroq nom birinchi tekshiriladi: "toshkentviloyati" ichida "toshkent" bor,
+   aks holda viloyat har doim SHAHAR deb o'qilardi. */
+const REGION_LOOKUP_KEYS = [...REGION_LOOKUP.keys()].sort((a,b)=>b.length-a.length);
+function resolveRegionKey(raw){
+  const n = norm(raw||"");
+  if(!n) return "";
+  if(REGION_LOOKUP.has(n)) return REGION_LOOKUP.get(n);
+  for(const k of REGION_LOOKUP_KEYS) if(k.length>=5 && n.includes(k)) return REGION_LOOKUP.get(k);
+  return "";
+}
+function currentUserRegion(){
+  try{
+    const c = JSON.parse(localStorage.getItem("cm_cur")||"null");
+    return c && c.region ? String(c.region) : "";
+  }catch(e){ return ""; }
+}
+/* Тошкент шаҳри «Вилоятлар» qatlamida chizilmaydi — u Туманлар qatlamida, u esa
+   endi o'chiq turadi. Lekin shahar chegarasi data.js ichida (relation 2216724)
+   baribir bor, shuning uchun kamerani qatlamni yoqmasdan ham aynan shahar ustiga
+   qo'ya olamiz. */
+function toshkentCityBounds(){
+  try{
+    const els = (typeof LOCAL_DATA!=="undefined" && LOCAL_DATA.districts && LOCAL_DATA.districts.elements) || [];
+    const rel = els.find(e=>e.id===2216724);
+    if(!rel) return null;
+    const rings = stitchRings((rel.members||[]).filter(m=>m.type==="way"&&m.geometry&&m.role!=="inner").map(m=>m.geometry));
+    return rings.length? L.latLngBounds([].concat.apply([],rings)) : null;
+  }catch(e){ return null; }
+}
+const HOME_REGION = resolveRegionKey(currentUserRegion());
+/* Toshkent shahri viloyat sifatida yoyilmaydi. Uning 12 tumani
+   districts_bound.json'da Тошкент вилояти konturi ichida yotadi (data.js'dagi
+   viloyat halqasi shaharni ham o'z ichiga oladi), shuning uchun yoyish uchun
+   viloyat ishlatiladi — kamera esa shaharda qoladi. */
+const HOME_EXPAND = HOME_REGION===TOSHKENT_CITY ? "toshkentviloyati" : HOME_REGION;
+/* Viloyat markaziy shaharlari — DEEP_CENTERS (va download_osm_tiles.js dagi
+   CENTERS) bilan AYNAN bir xil nuqtalar. Offline chuqur tile'lar (z15) aynan shu
+   markazlar atrofida 12 km radiusda mavjud, ya'ni bu yerda yaqin zoom bo'sh
+   ekran bermaydi. */
+const REGION_CENTERS = {
+  [TOSHKENT_CITY]:  [41.311, 69.279],
+  toshkentviloyati: [41.038, 69.341],   // Nurafshon
+  andijon:          [40.783, 72.344],
+  buxoro:           [39.767, 64.421],
+  fargona:          [40.389, 71.786],
+  jizzax:           [40.116, 67.842],
+  xorazm:           [41.550, 60.631],   // Urganch
+  namangan:         [41.001, 71.673],
+  navoiy:           [40.104, 65.373],
+  qashqadaryo:      [38.861, 65.789],   // Qarshi
+  samarqand:        [39.654, 66.960],
+  sirdaryo:         [40.494, 68.784],   // Guliston
+  surxondaryo:      [37.224, 67.278],   // Termiz
+  qoraqalpog:       [42.461, 59.611],   // Nukus
+};
+/* Uy viloyati uchun boshlang'ich zoom. Ilgari bu yerda butun viloyat konturi
+   fitBounds qilinardi — Farg'ona kabi ixcham viloyatda ham z9 atrofida chiqardi,
+   ya'ni operator o'z shahrini emas, butun viloyatni uzoqdan ko'rardi. Endi kamera
+   viloyat MARKAZIY SHAHRIGA qo'yiladi va zoom shu yerdan boshlanadi. */
+const HOME_ZOOM = 12;
+/* Viloyat butunlay kadrdan chiqib ketmasin: konturni sig'diradigan zoom'dan
+   ko'pi bilan shuncha zinapoya yaqinlashamiz. Katta viloyatlarda (Qoraqalpog'iston,
+   Navoiy) bu z12 emas, z9–10 beradi — baribir avvalgidan ancha yaqin. */
+const HOME_ZOOM_OVER_FIT = 4;
+function applyHomeView(){
+  const fit = (b)=>{ if(!b || !b.isValid()) return false;
+    map.fitBounds(b,{padding:[20,20],maxZoom:MAX_Z,animate:false}); return true; };
+  if(!EMBED_MODE && HOME_REGION && HOME_REGION!==TOSHKENT_CITY){   // embed → doim Toshkent
+    const r = REGIONS.find(x=>x.key===HOME_REGION);
+    const cc = REGION_CENTERS[HOME_REGION];
+    const b = (r && r._poly) ? r._poly.getBounds() : null;
+    const center = cc ? L.latLng(cc[0], cc[1]) : ((b && b.isValid()) ? b.getCenter() : null);
+    if(center){
+      let z = Math.min(HOME_ZOOM, regionMaxZoom(center));
+      if(b && b.isValid()){
+        const fitZ = map.getBoundsZoom(b, false, L.point(20,20));
+        z = Math.max(fitZ, Math.min(z, fitZ + HOME_ZOOM_OVER_FIT));
+      }
+      map.setView(center, z, {animate:false});
+      return;
+    }
+    if(fit(b)) return;
+  }
+  /* Toshkentliklar, shuningdek viloyati yozilmagan yoki tanilmagan hisoblar */
+  if(fit(toshkentCityBounds())) return;
+  map.setView([41.31,69.27],11);
+}
+const SUB_PALETTE=["#e57373","#64b5f6","#81c784","#ffb74d","#ba68c8","#4db6ac","#f06292","#a1887f","#90a4ae","#dce775","#7986cb","#ffd54f"];
+function ringAreaKm2(ring){
+  /* taxminiy shoelace, ekvirektangular proyeksiya */
+  const lat0=ring[0][0]*Math.PI/180, kx=111.32*Math.cos(lat0), ky=110.57;
+  let s=0;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const x1=ring[j][1]*kx, y1=ring[j][0]*ky, x2=ring[i][1]*kx, y2=ring[i][0]*ky;
+    s += x1*y2 - x2*y1;
+  }
+  return Math.abs(s/2);
+}
+async function loadRegions(group){
+  const q=`[out:json][timeout:200];area["ISO3166-1"="UZ"][admin_level=2]->.uz;relation(area.uz)["boundary"="administrative"]["admin_level"="4"];out geom;`;
+  const data = await getData("regions", q);
+  const savedC = colorStore("regionColors");
+  for(const rel of data.elements){
+    if(rel.type!=="relation" || rel.id===2216724) continue;
+    const nm = norm((rel.tags||{}).name||"");
+    const r = REGIONS.find(x=>{
+      if(x._done) return false;
+      if(x.key==="toshkentviloyati") return nm==="toshkentviloyati";
+      if(x.key==="qoraqalpog") return nm.includes("qoraqalpog")||nm.includes("qaraqalpaq")||nm.includes("karakalpak");
+      return nm.includes(x.key);
+    });
+    if(!r) continue;
+    r._done=true; r.relId=rel.id;
+    r.origColor=r.color; if(savedC[r.key]) r.color=savedC[r.key];
+    const outers=stitchRings((rel.members||[]).filter(m=>m.type==="way"&&m.geometry&&m.role!=="inner").map(m=>m.geometry));
+    if(!outers.length) continue;
+    regionGeoms.push(outers);
+    r._rings=outers;   // offline tuman filtri uchun (nuqta shu viloyat ичидами?)
+    const poly=L.polygon(outers,{pane:"regionsPane",color:r.color,weight:2.2,opacity:.9,fillColor:r.color,fillOpacity:.07});
+    r._poly=poly; r._store="regionColors"; r._id=r.key; r._group=group;
+    poly.on("click",e=>{
+      map.flyToBounds(poly.getBounds(),{padding:[20,20],duration:.9});
+      showInfo(r.name,
+        row("Умумий майдони",r.area)+row("Аҳоли сони",r.pop)+row("Қўшимча",r.extra)+
+        row("Туманлари", r.expanded? "ёйилган (ўнг клик → Йиғиш)":"ўнг клик → «Туманларга ёйиш»"),
+        e.latlng.lat,e.latlng.lng,
+        `<span class="lg-sw" style="display:inline-block;background:${r.color}55;border-color:${r.color}"></span>`);
+      L.DomEvent.stop(e);
+    });
+    poly.on("contextmenu",e=>{ openColorPicker(r, e.originalEvent, true); L.DomEvent.stop(e); });
+    group.addLayer(poly);
+    addSearchable([r.name,r.key],"🗺",r.name,"вилоят",()=>{ const c=poly.getBounds().getCenter(); poly.fire("click",{latlng:c}); });
+  }
+  /* saqlangan yoyilgan viloyatlarni tiklash */
+  for(const r of REGIONS){ if(r._done && expandedRegions.has(r.key)) { try{ await expandRegion(r,false); }catch(e){ console.warn(e); } } }
+}
+let DISTRICTS_BOUND=null;   // offline admin_level=6 tumanlar: [{n,c,r}]
+/* Bitta tuman poligonini viloyat ичига qo'shish (offline va Overpass ikkalasi uchun umumiy) */
+function addSubDistrict(r, name, rings, colorId, i){
+  const savedC = colorStore("subColors");
+  const sub={name:name, color:savedC[colorId]||SUB_PALETTE[i%SUB_PALETTE.length],
+    origColor:SUB_PALETTE[i%SUB_PALETTE.length], _store:"subColors", _id:String(colorId), _parentRegion:r};
+  const areaKm = Math.round(rings.reduce((s,rr)=>s+ringAreaKm2(rr),0));
+  const poly=L.polygon(rings,{pane:"cityPane",color:sub.color,weight:1.6,opacity:.9,fillColor:sub.color,fillOpacity:.16});
+  sub._poly=poly; sub._group=r._subGroup;
+  poly.on("click",e=>{
+    map.flyToBounds(poly.getBounds(),{padding:[20,20],duration:.8});
+    showInfo(sub.name,
+      row("Вилоят",r.name)+row("Умумий майдони","~"+areaKm.toLocaleString()+" км² (ҳисобланган)")+
+      row("Аҳоли","ОСМ базасида мавжуд эмас")+row("Манба","OpenStreetMap (offline)"),
+      e.latlng.lat,e.latlng.lng,
+      `<span class="lg-sw" style="display:inline-block;background:${sub.color}55;border-color:${sub.color}"></span>`);
+    L.DomEvent.stop(e);
+  });
+  poly.on("contextmenu",e=>{ openColorPicker(sub, e.originalEvent); L.DomEvent.stop(e); }); // o'ng klik → rang + Йиғиш
+  r._subGroup.addLayer(poly);
+  addSearchable([sub.name],"🗺",sub.name,"туман",()=>{ const c=poly.getBounds().getCenter(); poly.fire("click",{latlng:c}); }, r.name);
+}
+async function expandRegion(r, save=true){
+  if(r._subGroup){
+    map.addLayer(r._subGroup); r.expanded=true;
+    if(save) expandedRegions.add(r.key);
+    return;
+  }
+  setStatus(r.name+" туманлари юкланмоқда…");
+  r._subGroup = L.layerGroup();
+  const man=await loadManifest();
+  /* 1) OFFLINE: districts_bound.json — markazi shu viloyат ичидаги tumanlar */
+  if(man.bound && man.bound.districts && r._rings){
+    if(!DISTRICTS_BOUND){ DISTRICTS_BOUND=(await (await fetch("geodata/layers/districts_bound.json")).json()).p; }
+    let i=0;
+    for(const it of DISTRICTS_BOUND){
+      if(!r._rings.some(ring=>inRing(it.c,ring))) continue;
+      // Янги Тошкент — FAQAT o'zining alohida QIZIL qatlamida ko'rinadi (loadYangiToshkent).
+      // Tumanlar ichida chizilmasin — aks holda ikki marta (bir marta shu yerda, bir marta
+      // qizil qatlamda) chiziladi. Yangihayot bunga tushmaydi (norm != "yangitoshkent").
+      if(norm(it.n).includes("yangitoshkent")) continue;
+      addSubDistrict(r, it.n||("Tuman "+i), it.r, r.key+"_"+i, i); i++;
+    }
+  } else {
+    /* 2) Zaxira — jonli Overpass */
+    const q=`[out:json][timeout:150];area(${3600000000+r.relId})->.a;relation(area.a)["boundary"="administrative"]["admin_level"="6"];out geom;`;
+    const data = await overpass(q);
+    let i=0;
+    for(const rel of data.elements){
+      if(rel.type!=="relation") continue;
+      const t=rel.tags||{};
+      // Янги Тошкент — faqat alohida qizil qatlamda; tumanlar ichida emas (yuqoridagi izohga qarang).
+      if(norm(t["name:uz"]||t.name||"").includes("yangitoshkent")) continue;
+      const outers=stitchRings((rel.members||[]).filter(m=>m.type==="way"&&m.geometry&&m.role!=="inner").map(m=>m.geometry));
+      if(!outers.length) continue;
+      addSubDistrict(r, t["name:uz"]||t.name||("Tuman "+rel.id), outers, rel.id, i); i++;
+    }
+  }
+  map.addLayer(r._subGroup);
+  r.expanded=true;
+  if(save) expandedRegions.add(r.key);
+  setStatus("");
+  /* bu viloyat hududi uchun yoqilgan nuqta-qatlamlar (Overpass zaxira йўли учун) */
+  const b=r._poly.getBounds();
+  addPoiBox(`(${b.getSouth().toFixed(3)},${b.getWest().toFixed(3)},${b.getNorth().toFixed(3)},${b.getEast().toFixed(3)})`);
+}
+function collapseRegion(r){
+  if(r._subGroup) map.removeLayer(r._subGroup);
+  r.expanded=false;
+  expandedRegions.delete(r.key);
+}
+
+/* ── «Туманлар» qatlami — BUTUN mamlakat bo'ylab ────────────────────────────
+   Ilgari bu qatlam faqat data.js'dagi 16 ta DISTRICTS ni chizardi, ular esa
+   Тошкент shahri + uning atrofidagi tumanlar. Ya'ni Farg'onadagi operator
+   «Туманлар» ni yoqsa, ekranida Toshkent atrofi bo'yaladi-yu, o'z viloyati
+   bo'yalmasdan qolardi — boshqa viloyat tumanlarini ko'rish uchun har bir
+   viloyatni alohida o'ng klik → «Туманларга ёйиш» qilish kerak edi.
+
+   Endi qatlam yoqilganda hamma viloyat tumanlari ham chiziladi. Ular
+   addSubDistrict() orqali qo'shiladi, ya'ni bosish (uchib borish + маълумот) va
+   o'ng klik (rang tanlash) — Toshkent tumanlaridagi bilan bir xil.
+
+   O'chirilganda esa FAQAT shu qatlam ochganlari yig'iladi: foydalanuvchi o'zi
+   qo'lda yoygan (yoki boshlanishida o'z viloyati sifatida yoyilgan) viloyat
+   joyida qoladi. */
+const districtsAutoExpanded = new Set();
+async function expandAllRegionDistricts(){
+  if(typeof REGIONS==="undefined") return;
+  /* Tuman chegaralari viloyat konturi (r._rings) ichidan tanlanadi — konturlar
+     esa loadRegions() da hosil bo'ladi. Qatlam o'chiq bo'lsa ham yuklaymiz. */
+  if(layers.regions && !layers.regions.loaded){
+    try{ await layers.regions.loader(layers.regions.group); layers.regions.loaded=true; }
+    catch(e){ console.warn("[districts] viloyatlar yuklanmadi", e); return; }
+  }
+  for(const r of REGIONS){
+    if(!r._rings || r.expanded) continue;
+    try{ await expandRegion(r,false); districtsAutoExpanded.add(r.key); }
+    catch(e){ console.warn("[districts] "+r.name, e); }
+  }
+  setStatus("");
+}
+function collapseAutoExpandedDistricts(){
+  if(typeof REGIONS==="undefined") return;
+  for(const key of districtsAutoExpanded){
+    const r = REGIONS.find(x=>x.key===key);
+    if(r) collapseRegion(r);
+  }
+  districtsAutoExpanded.clear();
+}
+
+/* ============================= 2-3. METRO ============================= */
+let metroData = null;
+async function fetchMetro(){
+  if(metroData) return metroData;
+  const q = `[out:json][timeout:60];
+    node["station"="subway"](40.95,69.05,41.45,69.55);
+    out body;
+    relation["route"="subway"](40.95,69.05,41.45,69.55);
+    out geom;`;
+  metroData = await getData("metro", q);
+  return metroData;
+}
+async function loadMetroLines(group){
+  const data = await fetchMetro();
+  /* Har yo'nalish 2 ta relation (borish+qaytish) — ular parallel izlar, shuning uchun
+     ikki chiziq chiqadi. Har LINIYANI (rang bo'yicha) FAQAT BIR marta chizamiz. */
+  const drawnLines = new Set();
+  for(const r of data.elements.filter(e=>e.type==="relation")){
+    const t=r.tags||{};
+    let color = t.colour;
+    if(!color){
+      const nm = norm((t.name||"")+(t.ref||""));
+      if(nm.includes("chilonzor")||nm.includes("chilanzar")) color=LINES.chilonzor.color;
+      else if(nm.includes("ozbekiston")||nm.includes("uzbekist")) color=LINES.uzbekiston.color;
+      else if(nm.includes("yunusobod")||nm.includes("yunusabad")) color=LINES.yunusobod.color;
+      else color=LINES.halqa.color;
+    }
+    if(drawnLines.has(color)) continue;   // bu liniya allaqachon chizilgan (teskari yo'nalishни o'tkazamiz)
+    drawnLines.add(color);
+    for(const m of (r.members||[])){
+      if(m.type!=="way" || !m.geometry) continue;
+      if(m.role==="platform" || m.role==="stop") continue;   // faqat iz, platforma emas
+      group.addLayer(L.polyline(m.geometry.map(p=>[p.lat,p.lon]),{color:color,weight:2.5,opacity:.85}));
+    }
+  }
+  document.getElementById('lg-metro').innerHTML =
+    Object.values(LINES).map(l=>`<div class="lg-row"><span class="lg-dot" style="background:${l.color}"></span>${l.name}</div>`).join("");
+}
+async function loadMetroStations(group){
+  const data = await fetchMetro();
+  const nodes = data.elements.filter(e=>e.type==="node");
+  const used = new Set();
+  for(const s of STATIONS){
+    const target=norm(s.n);
+    const cands=[target].concat(ALIASES[target]||[]);
+    let node=null;
+    for(const nd of nodes){
+      if(used.has(nd.id)) continue;
+      const t=nd.tags||{};
+      const names=[t.name,t["name:uz"],t["name:ru"],t["name:en"],t.old_name].filter(Boolean).map(norm);
+      if(names.some(nn=>cands.some(c=>nn===c||nn.includes(c)||c.includes(nn)))){node=nd;break;}
+    }
+    let lat,lon;
+    if(node){ used.add(node.id); lat=node.lat; lon=node.lon; }
+    else if(s.fallback){ lat=s.fallback[0]; lon=s.fallback[1]; }
+    else { console.warn("Bekat topilmadi:",s.n); continue; }
+    const LN=LINES[s.line];
+    const icon=L.divIcon({className:"",iconSize:[9,9],iconAnchor:[5,5],
+      html:`<div class="blink-dot" style="width:9px;height:9px;background:${LN.color}"></div>`});
+    const m=L.marker([lat,lon],{icon:icon,zIndexOffset:900});
+    m.on("click",()=>{
+      flyNoJitter([lat,lon],16);
+      showInfo("Ⓜ "+s.n,
+        row("Йўналиш",`<span class="linebadge" style="background:${LN.color}">${LN.name}</span>`)+
+        row("Эски / халқ тилидаги номи",s.old)+row("Жойлашган ҳудуди",s.hud)+
+        row("Чегара ва локация",s.izoh)+row("Оператор саволи","«"+s.savol+"»"),
+        lat,lon);
+    });
+    group.addLayer(m);
+    addSearchable([s.n,s.old,node&&node.tags?node.tags.name:""], "Ⓜ", s.n, LINES[s.line].name+" метро бекати", ()=>m.fire("click"));
+  }
+}
+
+/* ============================= 4-7. POI QATLAMLARI ============================= */
+function poiIcon(emoji,color,blink){
+  return L.divIcon({className:"",iconSize:[14,14],iconAnchor:[7,7],
+    html:`<div class="poi-badge ${blink?'':'poi-shop'}" style="width:14px;height:14px;border-color:${color}">${emoji}</div>`});
+}
+function tagsTable(t){
+  const m={"name":"Номи","name:uz":"Номи (ўз)","name:ru":"Номи (рус)","operator":"Оператор","brand":"Бренд",
+    "opening_hours":"Иш вақти","phone":"Телефон","contact:phone":"Телефон","website":"Веб-сайт","contact:website":"Веб-сайт",
+    "addr:street":"Кўча","addr:housenumber":"Уй","shop":"Тури","tourism":"Тури","leisure":"Тури",
+    "religion":"Дин","denomination":"Мазҳаб","capacity":"Сиғими","wikipedia":"Википедия"};
+  let html="";
+  for(const k in m){ if(t[k]){
+    let v=t[k];
+    if(k.includes("website")) v=`<a href="${v}" target="_blank">${v}</a>`;
+    if(k==="wikipedia") v=`<a href="https://uz.wikipedia.org/wiki/${encodeURIComponent(v.split(':').pop())}" target="_blank">${v}</a>`;
+    html+=row(m[k],v);
+  }}
+  return html;
+}
+function centerOf(el){
+  if(el.type==="node") return [el.lat,el.lon];
+  if(el.center) return [el.center.lat,el.center.lon];
+  return null;
+}
+const BBOX="__BB__"; // joy tutuvchi — har bir hudud bbox'i bilan almashtiriladi
+/* Asosiy qamrov: Toshkent shahri + 5 tuman (Qibray, Toshkent, Zangiota, Yuqori/O'rta Chirchiq) */
+const poiBoxes=["(40.90,68.60,41.75,70.05)"];
+/* Viloyatlar qatlami yoqilganda butun respublika qamrovi qo'shiladi */
+/* Respublika 6 bo'lakka bo'lingan — har biri kichik, parallel va tez yuklanadi */
+const REPUB_BOXES=[
+  "(40.00,55.90,45.70,62.20)",  // Qoraqalpog'iston, Xorazm
+  "(38.50,62.20,43.10,66.00)",  // Navoiy, Buxoro
+  "(36.60,64.00,39.60,68.60)",  // Qashqadaryo, Surxondaryo
+  "(38.90,65.90,41.20,69.20)",  // Samarqand, Jizzax, Sirdaryo
+  "(40.00,68.40,42.10,71.00)",  // Toshkent viloyati (keng)
+  "(39.70,70.00,41.70,73.30)"   // Farg'ona vodiysi
+];
+function addRepublicBoxes(){
+  let added=false;
+  for(const b of REPUB_BOXES){ if(!poiBoxes.includes(b)){ poiBoxes.push(b); added=true; } }
+  return added;
+}
+/* KVARTAL/MASSIV/MAHALLA chegarasini bosilганда OFFLINE chizish (Overpass'siz, DARHOL, sekinlik yo'q).
+   Poligonlar geodata/layers/kvartal_shapes.json dan (PBF'dan ajratilgan, ~26 ming ta). */
+let outlineLayer=null;
+function drawOutline(rings){
+  if(outlineLayer) map.removeLayer(outlineLayer);
+  outlineLayer = L.polygon(rings,{color:"#c40000",weight:3.5,fill:false,className:"blinkline"}).addTo(map);
+}
+/* Xuddi shu joyga qayta "uchish" kartani silkitadi — joyida bo'lsak umuman uchmaymiz */
+function flyNoJitter(c, minZoom){
+  /* Qidiruvdan joy tanlanganda ilgari z=17 ga uchardi — u yerda tile umuman yo'q,
+     ya'ni bitta mahallani bosishning o'zi xaritani bo'shatib qo'yardi. Endi
+     chegaradan oshmaydi. */
+  const z=Math.min(map.getMaxZoom(), Math.max(map.getZoom(), minZoom||16));
+  if(map.getZoom()>=z && map.getCenter().distanceTo(L.latLng(c[0],c[1]))<40) return;
+  map.flyTo(c, z, {duration:.8});
+}
+function clearOutline(){ if(outlineLayer){ map.removeLayer(outlineLayer); outlineLayer=null; } }
+let KVARTAL_SHAPES=null;
+async function ensureShapes(){
+  if(KVARTAL_SHAPES) return KVARTAL_SHAPES;
+  KVARTAL_SHAPES=[];
+  try{
+    const man=await loadManifest();
+    if(man.shapes){ KVARTAL_SHAPES=(await (await fetch("geodata/layers/kvartal_shapes.json")).json()).p; }
+  }catch(e){}
+  return KVARTAL_SHAPES;
+}
+async function showKvartalOutline(lat,lon,name){
+  clearOutline();
+  const shapes=await ensureShapes();
+  /* 1) nomi mos poligon (eng yaqin markazlisi) */
+  let best=null, bd=Infinity;
+  if(name){
+    const nn=norm(name);
+    for(const it of shapes){
+      if(!it.n) continue;
+      const inm=norm(it.n);
+      if(inm===nn || inm.includes(nn) || nn.includes(inm)){
+        const dy=it.c[0]-lat, dx=it.c[1]-lon, d=dy*dy+dx*dx;
+        if(d<bd){ bd=d; best=it; }
+      }
+    }
+    /* nomi mos, lekin markazi juda uzoq (>3km) — boshqa shahardagi adash bo'lishi mumkin */
+    if(best && bd>0.0008) best=null;
+  }
+  /* 2) topilmasa — nuqta ICHIDA yotgan eng kichik poligon (real massiv chegarasi) */
+  if(!best){
+    let ba=Infinity;
+    for(const it of shapes){
+      if(Math.abs(it.c[0]-lat)>0.25 || Math.abs(it.c[1]-lon)>0.3) continue; // uzoqlarni tez o'tkazish
+      if(!it.r.some(rr=>inRing([lat,lon],rr))) continue;
+      const a=it.r.reduce((s,rr)=>s+ringAreaKm2(rr),0);
+      if(a<ba){ ba=a; best=it; }
+    }
+  }
+  /* 3) baribir topilmasa — nuqta yo'l/chekka ustida bo'lishi mumkin: eng yaqin KICHIK poligon (~650 m ichida) */
+  if(!best){
+    let bd2=Infinity;
+    for(const it of shapes){
+      const dy=it.c[0]-lat, dx=it.c[1]-lon;
+      if(Math.abs(dy)>0.006 || Math.abs(dx)>0.008) continue;
+      const a=it.r.reduce((s,rr)=>s+ringAreaKm2(rr),0);
+      if(a>3) continue;                       // katta poligon markazi yaqin bo'lsa ham u emas
+      const d=dy*dy+dx*dx;
+      if(d<bd2){ bd2=d; best=it; }
+    }
+  }
+  if(best){
+    drawOutline(best.r);
+    /* butun chegara ekranga sig'sin — aks holda qizil chiziq ko'rinmay qoladi */
+    map.flyToBounds(outlineLayer.getBounds(),{padding:[40,40],duration:.8,maxZoom:Math.min(map.getMaxZoom(),16)});
+    if(best.s==="bl"){ /* binolardan yasalgan taxminiy chegara — halollik uchun aytamiz */
+      setStatus("Тахминий чегара (бинолар жойлашуви бўйича) — OSMда аниқ полигон чизилмаган");
+      setTimeout(()=>setStatus(""),5000);
+    }
+    return true;
+  }
+  setStatus("Бу ҳудуднинг чегара полигони OSM харитасида чизилмаган");
+  setTimeout(()=>setStatus(""),4000);
+  return false;
+}
+/* ============================= OFFLINE GEODATA (geodata/layers) ============================= */
+/* PBF'dan ajratilgan tayyor qatlamlar. Viewport (ko'rinadigan hudud) + zoom bo'yicha
+   render qilinadi — shu sabab minglab nuqta bo'lsa ham tez va silliq ishlaydi. */
+/* yandex_fill.py yozadigan qo'shimcha obyektlar: {qatlam: [[lat,lon,nom,teglar],...]} */
+let YEXTRA=null;
+async function loadYExtra(){
+  if(YEXTRA!==null) return YEXTRA;
+  try{ YEXTRA=await (await fetch("geodata/layers/yandex_extra.json")).json(); }
+  catch(e){ YEXTRA={}; }
+  return YEXTRA;
+}
+let LAYER_MANIFEST=null;
+async function loadManifest(){
+  if(LAYER_MANIFEST!==null) return LAYER_MANIFEST;
+  try{ LAYER_MANIFEST=await (await fetch("geodata/layers/manifest.json")).json(); }
+  catch(e){ LAYER_MANIFEST={poi:{},bound:{}}; }
+  return LAYER_MANIFEST;
+}
+/* ====== Global qidiruv indeksi (search.json) — fonда BO'LAK-BO'LAK quriladi (qotmaydi) ====== */
+function searchMeta(key){
+  if(key==="kocha") return {emoji:"🛣",label:"кўча",layerKey:null};
+  if(key.endsWith("_b")){
+    const bk=key.slice(0,-2);
+    if(bk==="regions")   return {emoji:"🗺",label:"вилоят",layerKey:"regions"};
+    if(bk==="districts") return {emoji:"🗺",label:"туман",layerKey:"districts"};
+    return {emoji:"🏡",label:"маҳалла",layerKey:"mahallalar"};
+  }
+  const l=layers[key];
+  const emoji=l?(l.label.match(/^\S+/)||["📍"])[0]:"📍";
+  const label=l?l.label.replace(/^\S+\s*/,""):key;
+  return {emoji,label,layerKey:key};
+}
+function enableLayerFor(key){
+  const l=layers[key]; if(!l) return;
+  if(l.on){ if(!map.hasLayer(l.group)) l.group.addTo(map); refreshViewports(); return; }
+  l.on=true; if(l.btn) l.btn.classList.add('on');
+  if(!l.loaded){ l.loader(l.group).then(()=>{ l.loaded=true; l.group.addTo(map); refreshViewports(); }).catch(()=>{}); }
+  else { l.group.addTo(map); refreshViewports(); }
+}
+async function loadSearchIndex(){
+  let data;
+  try{ data=await (await fetch("geodata/layers/search.json")).json(); }catch(e){ return; }
+  const arr=data.p; const AREAS=data.a||[]; let i=0;
+  (function chunk(){
+    const end=Math.min(i+3000, arr.length);
+    for(; i<end; i++){
+      const e=arr[i], lat=e[0], lon=e[1], nm=e[2], meta=searchMeta(e[3]);
+      /* e[4] indexes data.a — missing on the ~1.7% of points that fall outside
+         every boundary, and on an unstamped (older) search.json. */
+      const area=(e.length>4 && AREAS[e[4]])||"";
+      addSearchable([nm], meta.emoji, nm, meta.label, ()=>{
+        map.flyTo([lat,lon], Math.min(map.getMaxZoom(),17), {duration:.8});
+        if(searchPin) map.removeLayer(searchPin);
+        searchPin=L.marker([lat,lon]).addTo(map);
+        showInfo(meta.emoji+" "+nm,
+          (area?row("Ҳудуд",area):"")+row("Тури",meta.label)+row("Манба","OpenStreetMap (offline)"), lat, lon);
+        if(meta.layerKey) enableLayerFor(meta.layerKey);
+      }, area);
+    }
+    if(i<arr.length) setTimeout(chunk,0);   // navbatdagi bo'lak — asosiy oqim bloklanmaydi
+  })();
+}
+const POI_VIEW=[];    // {group,pts,opts}
+const POI_MAX=1800;   // bir qatlamda ekranga bir vaqtda maks nuqta (tezlik uchun)
+let _vpTimer=null;
+function refreshViewports(){
+  for(const e of POI_VIEW) renderPoiVP(e);
+}
+map.on("moveend",()=>{ clearTimeout(_vpTimer); _vpTimer=setTimeout(refreshViewports,120); });
+
+function showPoiInfo(c, t, o){
+  const d = o.fixedColor? null : districtOf(c[0],c[1]);
+  showInfo(o.emoji+" "+(t.name||o.fallbackTitle),
+    tagsTable(t)+(d?row("Ҳудуд",d.name):"")+row("Манба", o.src||"OpenStreetMap"),
+    c[0],c[1], "", !t.name);
+  /* Kvartal/massiv/mahalla bo'lsa — chegarasini offline chizamiz; boshqasi bosilsa tozalaymiz */
+  if(o.outline){
+    /* chegara topilsa flyToBounds o'zi zoom qiladi; topilmasa nuqtaga uchamiz */
+    showKvartalOutline(c[0],c[1],t.name).then(found=>{ if(!found) flyNoJitter(c); });
+  } else {
+    clearOutline();
+    flyNoJitter(c);
+  }
+}
+function addPoiMarker(c, t, o, group){
+  const d = o.fixedColor? null : districtOf(c[0],c[1]);
+  const color = o.fixedColor || (d? d.color : "#888");
+  const m=L.marker(c,{icon:poiIcon(o.emoji,color,o.blink)});
+  m.on("click",()=>showPoiInfo(c,t,o));
+  group.addLayer(m);
+  return m;
+}
+const VP_PAD=0.4;  // 40% marja: kichik surish/zoomда qayta chizilmaydi → titramaydi
+/* INKREMENTAL render: mavjud markerlarni saqlaydi, faqat farqni qo'shади/oladi.
+   clearLayers ishlatilmaydi — shu sabab bosganда/surganда titrash yo'q. */
+function renderPoiVP(e){
+  const g=e.group;
+  if(!map.hasLayer(g)){ if(e._mk&&e._mk.size){ g.clearLayers(); e._mk.clear(); } return; }
+  if(!e._mk) e._mk=new Map();                   // pts-index -> marker
+  const pb=map.getBounds().pad(VP_PAD);
+  const s=pb.getSouth(), n=pb.getNorth(), w=pb.getWest(), ea=pb.getEast();
+  const inside=[];
+  for(let i=0;i<e.pts.length;i++){ const p=e.pts[i]; if(p[0]>=s&&p[0]<=n&&p[1]>=w&&p[1]<=ea) inside.push(i); }
+  const step = inside.length>POI_MAX? Math.ceil(inside.length/POI_MAX) : 1; // uzoqdan — namuna
+  const want=new Set();
+  for(let i=0;i<inside.length;i+=step) want.add(inside[i]);
+  for(const [idx,m] of e._mk){ if(!want.has(idx)){ g.removeLayer(m); e._mk.delete(idx); } }
+  for(const idx of want){ if(!e._mk.has(idx)){ const p=e.pts[idx]; e._mk.set(idx, addPoiMarker([p[0],p[1]], p[3]||{}, e.opts, g)); } }
+}
+function poiLoader(qtpl,emoji,fallbackTitle,blink,fixedColor,outline){
+  const opts={emoji,fallbackTitle,blink,fixedColor,outline,src:"OpenStreetMap (offline)"};
+  const seen=new Set(), doneBoxes=new Set();
+  const fn = async function(group){
+    const key=fn.layerKey;
+    const man=await loadManifest();
+    /* 1) OFFLINE geodata bo'lsa — shundan (tez, viewport bo'yicha) */
+    if(key && man.poi && man.poi[key]){
+      if(fn._pts){ refreshViewports(); return; }
+      const data=await (await fetch("geodata/layers/"+key+".json")).json();
+      fn._pts=data.p;                            // [[lat,lon,name,tags],...]
+      /* Yandex API orqali topilgan QO'SHIMCHA obyektlar (OSMda yo'qlari) */
+      const ex=await loadYExtra();
+      if(ex[key] && ex[key].length){
+        fn._pts=fn._pts.concat(ex[key]);
+        for(const p of ex[key]) addSearchable([p[2]], opts.emoji, p[2], fallbackTitle+" · Yandex", ()=>{
+          map.flyTo([p[0],p[1]],Math.min(map.getMaxZoom(),17),{duration:.8});
+          showPoiInfo([p[0],p[1]], p[3]||{}, Object.assign({},opts,{src:"Yandex Maps API"}));
+        });
+      }
+      /* Qidiruv — global search.json indeksidan (bu yerda addSearchable YO'Q,
+         shu sabab qatlam yoqilganда qotmaydi). */
+      const e={group, pts:fn._pts, opts};
+      POI_VIEW.push(e); renderPoiVP(e);
+      return;
+    }
+    /* 2) Zaxira — jonli Overpass (offline fayl topilmasa) */
+    const jobs = [...poiBoxes].filter(b=>!doneBoxes.has(b)).map(async b=>{
+      const data = await overpass(`[out:json][timeout:120];(${qtpl.split("__BB__").join(b)});out center tags;`);
+      doneBoxes.add(b);
+      return data;
+    });
+    const results = await Promise.allSettled(jobs);
+    const ovp=Object.assign({},opts,{src:"OpenStreetMap"});
+    for(const rz of results){
+      if(rz.status!=="fulfilled") { console.warn("poi box xato:",rz.reason&&rz.reason.message); continue; }
+      for(const el of rz.value.elements){
+        const k=el.type+el.id;
+        if(seen.has(k)) continue; seen.add(k);
+        const c=centerOf(el); if(!c) continue;
+        if(!inUzbekistan(c[0],c[1])) continue;
+        const t=el.tags||{};
+        const m=addPoiMarker(c,t,ovp,group);
+        if(t.name) addSearchable([t.name,t["name:uz"],t["name:ru"],t["name:en"]], emoji, t.name, fallbackTitle, ()=>{
+          if(!map.hasLayer(group)) group.addTo(map);
+          m.fire("click");
+        });
+      }
+    }
+  };
+  fn.isPoi = true;
+  return fn;
+}
+/* Yoqilgan (yuklangan) nuqta-qatlamlarni yangi bbox'lar uchun to'ldirish — parallel */
+async function refreshPoiLayers(){
+  const jobs=[];
+  for(const key in layers){
+    const l=layers[key];
+    if(l.loader.isPoi && l.loaded) jobs.push(l.loader(l.group).catch(e=>console.warn(key,e)));
+  }
+  if(jobs.length){
+    setStatus("Янги ҳудуд қатламлари юкланмоқда…");
+    await Promise.allSettled(jobs);
+    setStatus("");
+  }
+}
+async function addPoiBox(bboxStr){
+  if(poiBoxes.includes(bboxStr)) return;
+  poiBoxes.push(bboxStr);
+  await refreshPoiLayers();
+}
+
+/* ============================= QATLAMLARNI RO'YXATGA OLISH ============================= */
+/* Ochilganda FAQAT «Вилоятлар» yoqiq. Ilgari Туманлар va ikkala Метро qatlami ham
+   yoqiq edi — ular esa sof Тошкент qatlamlari: metro faqat poytaxtda bor, Туманлар
+   ro'yxati ham Тошкент shahri va uning atrofidan iborat. Boshqa viloyatdagi
+   foydalanuvchi uchun ular ortiqcha edi. Kerak bo'lsa o'zi yoqadi. */
+defLayer("regions","🇺🇿 Вилоятлар",true,loadRegions);
+defLayer("districts","🗺 Туманлар",false,loadDistricts);
+defLayer("metrolines","〰 Метро изи (линиялар)",false,loadMetroLines);
+defLayer("metrostations","Ⓜ Метро бекатлари",false,loadMetroStations);
+defLayer("kpp","🚧 КПП (назорат-ўтказиш пунктлари)",false,
+  poiLoader(`node["barrier"~"checkpoint|border_control"]${BBOX};node["amenity"~"checkpoint|customs"]${BBOX};node["highway"="checkpoint"]${BBOX};way["barrier"~"checkpoint|border_control"]${BBOX};`,"🚧","КПП",false,"#455a64"));
+defLayer("ypx","🚓 ЙПХ постлари",false,
+  poiLoader(`node["amenity"="police"]["name"~"YPX|ЙПХ|YoPX|DPS|ДПС|[Pp]ost|[Пп]ост"]${BBOX};way["amenity"="police"]["name"~"YPX|ЙПХ|YoPX|DPS|ДПС|[Pp]ost|[Пп]ост"]${BBOX};node["highway"="speed_camera"]["name"]${BBOX};`,"🚓","ЙПХ пости",false,"#0d47a1"));
+defLayer("guard","💂 Қоровул / Охрана жойлари",false,
+  poiLoader(`node["building"="guardhouse"]${BBOX};way["building"="guardhouse"]${BBOX};node["barrier"="entrance"]["name"]${BBOX};node["amenity"="security_booth"]${BBOX};`,"💂","Қоровул пости",false,"#827717"));
+defLayer("bridges","🌉 Мостлар (кўприклар)",false,
+  poiLoader(`way["man_made"="bridge"]["name"]${BBOX};relation["man_made"="bridge"]["name"]${BBOX};way["bridge"="yes"]["name"~"ko.prigi|ko.prik|мост|kuprik",i]${BBOX};`,"🌉","Кўприк",false,"#37474f"));
+defLayer("bozorlar","🧺 Бозорлар",false,
+  poiLoader(`node["amenity"="marketplace"]${BBOX};way["amenity"="marketplace"]${BBOX};relation["amenity"="marketplace"]${BBOX};`,"🧺","Бозор",false,"#e65100"));
+defLayer("malls","🏬 Супермаркет / Молл",false,
+  poiLoader(`node["shop"~"mall|supermarket|department_store"]["name"]${BBOX};way["shop"~"mall|supermarket|department_store"]["name"]${BBOX};`,"🏬","Савдо маркази",false,"#5d4037"));
+defLayer("parks","🌳 Парклар",false,
+  poiLoader(`way["leisure"="park"]["name"]${BBOX};relation["leisure"="park"]["name"]${BBOX};`,"🌳","Парк",true));
+defLayer("hospitals","🏥 Шифохоналар",false,
+  poiLoader(`node["amenity"~"hospital|clinic"]${BBOX};way["amenity"~"hospital|clinic"]${BBOX};relation["amenity"="hospital"]${BBOX};`,"🏥","Шифохона",false,"#c62828"));
+defLayer("edu","🎓 Ўқув бинолари",false,
+  poiLoader(`node["amenity"~"school|college|university"]["name"]${BBOX};way["amenity"~"school|college|university"]["name"]${BBOX};relation["amenity"~"college|university"]["name"]${BBOX};`,"🎓","Ўқув муассасаси",false,"#1565c0"));
+defLayer("mosques","🕌 Масжидлар",false,
+  poiLoader(`node["amenity"="place_of_worship"]["religion"="muslim"]${BBOX};way["amenity"="place_of_worship"]["religion"="muslim"]${BBOX};relation["amenity"="place_of_worship"]["religion"="muslim"]${BBOX};`,"🕌","Масжид",false,"#00897b"));
+defLayer("kruglar","🔄 Круглар / Чоррахалар",false,
+  poiLoader(`way["junction"="roundabout"]["name"]${BBOX};node["highway"="mini_roundabout"]${BBOX};node["junction"="yes"]["name"]${BBOX};node["junction"="roundabout"]["name"]${BBOX};`,"🔄","Круг / Чорраҳа",false,"#6a1b9a"));
+/* KESISHMALAR — offline hisoblangan: nomli ko'chalar kesishgan nuqtalar ("A × B").
+   Overpass shabloni faqat zaxira (offline fayl bo'lmasa) — junction node'lar. */
+defLayer("kesishmalar","➕ Кесишмалар (перекрёстоклар)",false,
+  poiLoader(`node["junction"="yes"]["name"]${BBOX};`,"➕","Кесишма",false,"#ad1457"));
+defLayer("food","🍽 Кафе / Ресторан / Тўйхона",false,
+  poiLoader(`node["amenity"~"restaurant|cafe|fast_food|food_court|events_venue"]["name"]${BBOX};way["amenity"~"restaurant|cafe|fast_food|food_court|events_venue"]["name"]${BBOX};`,"🍽","Овқатланиш шахобчаси",false,"#d84315"));
+/* KVARTAL/MASSIV — nuqta (POI), bosilganда FAQAT nomi mos kelgan hudud chegarasi chiziladi */
+defLayer("kvartallar","🏘 Кварталлар / Массивлар",false,
+  poiLoader(`node["place"~"quarter|neighbourhood"]["name"]${BBOX};way["place"~"quarter|neighbourhood"]["name"]${BBOX};relation["place"~"quarter|neighbourhood"]["name"]${BBOX};`,"🏘","Квартал / Массив",false,"#00695c",true));
+/* МАҲАЛЛА — alohida qatlam: rasmiy маҳалла/даҳа CHEGARALARI (admin_level=10), butun UZ bo'ylab offline */
+defLayer("mahallalar","🏡 Маҳаллалар",false,
+  poiLoader(`node["place"~"quarter|neighbourhood"]["name"~"mahalla|MFY|маҳалла|махалл",i]${BBOX};way["place"~"quarter|neighbourhood"]["name"~"mahalla|MFY|маҳалла|махалл",i]${BBOX};`,"🏡","Маҳалла",false,"#7b1fa2",true));
+defLayer("shaharchalar","🏙 Шаҳарчалар (посёлка)",false,
+  poiLoader(`node["place"~"town|suburb"]["name"]${BBOX};`,"🏙","Шаҳарча",false,"#4e342e"));
+defLayer("hotels","🏨 Меҳмонхоналар",false,
+  poiLoader(`node["tourism"~"hotel|hostel|guest_house"]["name"]${BBOX};way["tourism"~"hotel|hostel|guest_house"]["name"]${BBOX};`,"🏨","Меҳмонхона",false,"#283593"));
+/* YANGI TOSHKENT — yangi shahar hududi QALIN qizil chegara bilan (ro'yxat oxirida) */
+async function loadYangiToshkent(group){
+  if(!DISTRICTS_BOUND){ DISTRICTS_BOUND=(await (await fetch("geodata/layers/districts_bound.json")).json()).p; }
+  const it=DISTRICTS_BOUND.find(d=>norm(d.n).includes("yangitoshkent"));
+  if(!it){ setStatus("Янги Тошкент чегараси базада топилмади"); return; }
+  const poly=L.polygon(it.r,{color:"#c40000",weight:5.5,opacity:.95,fill:true,fillColor:"#c40000",fillOpacity:.05});
+  poly.on("click",()=>{
+    showInfo("🆕 Янги Тошкент", row("Тури","Янги шаҳар ҳудуди (Тошкент вилояти)")+row("Манба","OpenStreetMap (offline)"), it.c[0], it.c[1]);
+  });
+  group.addLayer(poly);
+  group.addLayer(L.marker(it.c,{icon:L.divIcon({className:"",iconSize:[0,0],
+    html:'<div style="transform:translate(-50%,-50%);font:800 14px/1 system-ui;color:#c40000;letter-spacing:.5px;white-space:nowrap;text-shadow:0 1px 4px #fff,0 -1px 4px #fff,1px 0 4px #fff,-1px 0 4px #fff">ЯНГИ ТОШКЕНТ</div>'})}));
+  loadYangiToshkent.bounds=poly.getBounds();
+}
+defLayer("yangitoshkent","🆕 Янги Тошкент",false,loadYangiToshkent);
+
+renderToggles();
+
+/* "Hammasini yuklash" tugmasi olib tashlandi.
+   Endi hamma qatlam offline geodata'dan (bir zumda), tile'lar esa backend'да
+   prefetch_tiles.js orqali oldindan keshlanadi (server.js oyiga bir marta yangilaydi). */
+
+/* ============================= ХАРИТА АСОСИ ТАНЛАГИЧ ============================= */
+(function(){
+  const y=document.getElementById('bm-yandex'), o=document.getElementById('bm-osm');
+  if(!o) return;
+  o.classList.add('on'); // VAQTINCHA: faqat OSM yoqiq
+  /* Yandex tugmasi qaytarilганда quyidagilar avtomatik ishlaydi */
+  if(y){
+    o.classList.remove('on');
+    (BASEMAP==="yandex"? y:o).classList.add('on');
+    y.onclick=()=>{ if(BASEMAP!=="yandex"){ localStorage.setItem("basemap2","yandex"); location.reload(); } };
+    o.onclick=()=>{ if(BASEMAP!=="osm"){ localStorage.setItem("basemap2","osm"); location.reload(); } };
+  }
+})();
+
+/* ============================= START ============================= */
+(async ()=>{
+  setTimeout(()=>map.invalidateSize(),100);
+  /* Qatlam holati endi SAQLANMAYDI: karta har ochilganda faqat «Вилоятлар» yoqiq
+     bo'ladi. Eski kalitni qoldirish yetarli emas edi — ilgari yoqilgan
+     Туманлар/Метро o'sha yerdan qaytib kelaverardi, ya'ni default'ni tuzatish
+     eski brauzerlarga umuman ta'sir qilmasdi. */
+  try{ localStorage.removeItem("layersOn"); }catch(e){}
+  /* Foydalanuvchining o'z viloyati tumanlarga avtomatik yoyilsin. loadRegions
+     tugagach shu ro'yxatni o'qiydi, shuning uchun undan OLDIN belgilanadi. */
+  if(HOME_EXPAND) expandedRegions.add(HOME_EXPAND);
+  /* Server'dagi umumiy ranglarni olish va qo'llash */
+  await loadServerPrefs();
+  applyDistrictColors();
+  /* Viloyatlar yoqiq bo'lsa — nuqta qatlamlari butun respublika bo'ylab yuklanadi */
+  if(layers.regions.on) addRepublicBoxes();
+  /* Туманлар qatlami POI ranglari va qidiruv uchun baribir YUKLANADI; enable()
+     uni kartaga faqat qatlam yoqiq bo'lsa qo'shadi, ya'ni ko'rinmaydi. */
+  await enable("districts");
+  await Promise.allSettled([enable("regions"), enable("metrolines"), enable("metrostations")]);
+  applyHomeView();
+  /* Faqat YOQIQ qatlamlar yuklanadi. POI qatlamlar (kafe, masjid...) faqat BOSILGANDA
+     yuklanadi — shu sabab startup juda tez va qotmaydi. Qidiruv esa global search.json'dan. */
+  const rest = Object.keys(layers).filter(k=>layers[k].on && !layers[k].loaded);
+  for(const k of rest){
+    const l=layers[k];
+    try{ await l.loader(l.group); l.loaded=true; if(l.on) l.group.addTo(map); }
+    catch(e){ console.warn(k,e); }
+  }
+  refreshViewports();
+  setStatus("");
+  loadSearchIndex();   // FON (asosiy oqimni bloklamaydi): qidiruv indeksi
+})();
+</script>
+<script>
+/* ================= DIQQATGA SAZOVOR JOYLAR (LANDMARKLAR) =================
+   Yandex Maps uslubida: har bir mashhur joy o'zining HAQIQIY fotosi bilan
+   dumaloq belgi bo'lib xaritada doimiy turadi. Zoom kattalashsa belgi ham
+   kattalashadi, kichraysa kichrayadi; juda yaqin zoom'da yo'qoladi. */
+(function(){
+  /* Joylarning fotolari (Wikimedia Commons) — offline ishlashi uchun faylning o'ziga joylangan */
+  const LMPHOTO={
+  amirtemur:"data:image/jpeg;base64,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",
+  chorsu:"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAAAAAAD/2wBDAAcFBQYFBAcGBgYIBwcICxILCwoKCxYPEA0SGhYbGhkWGRgcICgiHB4mHhgZIzAkJiorLS4tGyIyNTEsNSgsLSz/2wBDAQcICAsJCxULCxUsHRkdLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCz/wAARCACQAJADASIAAhEBAxEB/8QAGwAAAgMBAQEAAAAAAAAAAAAAAwUCBAYBAAf/xAA4EAACAQIFAgQEBAYBBQEAAAABAgMEEQAFEiExQVEGEyJhFHGBoTKRsfAjQlLB0eEVFiQzYvFy/8QAGAEAAwEBAAAAAAAAAAAAAAAAAAECAwT/xAAkEQACAgEEAQUBAQAAAAAAAAAAAQIRIQMSMUFhEyIyUYGRcf/aAAwDAQACEQMRAD8Aft57qQ0ygWuVQ6VFu5HTFKeG0PohRQQB6tvMUbgG/A3uL39/azG7VB0MrHgv0BPIUew6+/yxa0yNvstzb08n6/7GGIp0ktJLFdIwri6sjLYoRzfew+eLCrGy3j07b6hax+Q/ufywL4MvGXiVCTY30X1AcFr9OwJ7YktVaMh4CjLsWBup/wDz3+vHXCADpcVoMkRmRhbUg3j9+mx+x9jgz2aMok5CW02JuLfX/eDKqmIu0RIY8lgB/e+PQIsEBkSQN6iPIZfTbvq5+g7YBi+PVTzSQs6yRSMGQMQCrdfUO53HHUYMtGhDzCOQstifUCOuxHXnkb7YMj/wy1tJ4uAN/vf7Y1/gLKqaqaasmUStA1lDg+kne+/y2+uEAhoPCmczWq6WEiHSWJk9Ori5Hfa/zNj3xObwLnNLEZ2CSJYWWNgxtbYDf/2PvwOl8fS6iYwRStSKrldyl9r4DQzVTaUqo1XSPTuL7bHbuMOnQWj5HLS1NPI/m0vwenYnTYqLX5PW9+f94hHFUpK1zqiJOkFtXbn35PPbH1rxJl8FXlU08jFZIF1hrdBuV9/r1x8waKAowRmV9RAXRqKqOtyP7YQyrUyGNFBlBZtljtt8ySDYfXEo6NFGpY1QnkKb9SdxfuSe/wA8cjaKOIpJIqjrqYgE44XFm8uKJ7dXBAt34/ftgA7KKWGMyTFUABO63B+X+OcBghMqMrwxoDeyMLab9PmevQcd8Fhg1KWYx3axsVAFxx+73wSAMuiMTPEBtpNiDtxvt/nAB6KMqoCuyk/03G45Fr8jtiNQswGtZ9Eq/hYgE/2JxCeQCUpriZmIDhBYjs22wI7/AEwARS1Mn/eTIQNljDXjPue562O3zwxFh6RlZpEnZCCNUl9mPuDsfyvjhqJ5Daco52T0c6f5vT0vsDzscFWelZtc9VGXXgXsB7AcfvrgNJKHkllJB1AAC+3JPPbccYZJb+Ip3j/iSPI3CxlSov8ALgD88eiiidGZiCW3W5sAOl+1+cVqmo0vGqyqrE76DwL8bfPHpliWneQiJAouFNrn6f2/PAM5FFG8zmOJeLAoN/8AH/33xNSfMaLWfSLEAg79vfHIvLeNdTKCR6mO2IUzAw2ICH+rTaw9h/fCGTBVZDERqt1BFyexP+8Msmz+syGclUSSlfZ0a41Dm47dTe364UxFtMhk3jU3AuL6eg/ffHIwA5RTZy3qDjYDk7dv94QH0Om8a5RXyjzp/gqZV/AykEudt+lu3vgjeL8jSWoSesV4tatTtECW3UXt23/XHzksS3mOscxZhsTyDe2IlCglOmJwdwb8kbEj9cVYqNPnfjafNaQ0NMkixE3MjD1SAG+4G3vbrjN6hpKBkdjvawP7OBqTrKieytuqqP5uf3b3xFG1SyaIjcAa9+QewPy2tiSg4Noyi3VyN9vvcYis5RArxupOwswKn2IPXAwUSqJuHJUG4uLdjcfvfHXfRU65ArgrYi9iR3+2ACaTTwkrpQ6jsrgk/Mf336Y7LDrgeV9DrYA6bgc9xuCPf3wKpEgRWW0ek+kub26jj5Yn5sk4YiJI2I0mzH8jthiLEEUaRLZNI5BA/UcfpiK+XFO6MF8vV2vYNx783H5YrU802ghKhVjc3BZOvXrtjs8frVZiXMno50FbEHp+/vgAu3VhoCiR23O2x/1+vsOaMMitUTRyAOVYBbAXI4sOw6/XFeCWOamEjSS8Wca+T297466/CBJmjVkLEOLcfXnbDEWKq1Okcl03ca1XjT+tsGJie/qVAODbcnAAYWIIKIBvrG35fv8AXEIJ2ZPJNzY6dYHI9vfCANA7SQKrqwCj1G27fvvj0ZPnSRhvQ7lgGbfjcYhI5im1RKUuLEH26gd8SNniiCFSCRpKnf33wDJjSszSEER6rEj8II6/niQN180MvqY/iHIO25+mIAgRiFgVcEDY3Fu/tgr3jdUGplJ1AEb35P8AnCGDZFbyVVUIO3bSeb/P598eMS+fLZY18wAar9RzgjDVUx6XFyCb6bWAxB3AqzbTcrbZPfm3bAALZY9KaEYSekWJA/1/nHFNo45SXfc32ve53tjupYpmOs30g3C7nf74giuX8tgxVfUFG1r3/wAYAORnT/FGlVk2Yg32vtfEQdNSXW7LH6PUNsR1gAxAKoJIDt0HbHlZYFkUvZR6gF4I9hiRnqhjZY7qBfUFG/5dsGnkYo0oTyyFvqDAi39xitEsiSrIRZmFgG6dbC3GBVEjMrQgpoBDMAePl272xSJLFM7JFJE0KyqTe4ba316YjM0nmRryUF1ViNVrjg/TBWlsuoQuhQdrjjFalmVauWWcMlwFXYsAOnHTDAAqtDecFmXXcldgPcD8sWHaKVVszSauNTXAGBln8rSVZFtb0pqOAIqRLqDWNz6ZARce5w6EXPNFNIVOmRW6ADUD2xIEPDfQ7Ox1axtY+xxVWaFyttKqNyPftiVwGtEyoH2ILg/W3TCoEWIp5fNRmdFVha5Un5WwVV9buHQWP82wPfAQVMZSSQqAN1UgA/XBoI9IHltqa266bj8+mChhY3jkmNowBbSBewJ/dsWo45jPpFzoHGrgHpfvtgVMrOhLKArm+oqWHyxfo6TU7/xFNiBZgSG69PnhMpAvKRqgEs47gnfX0+tr45NHOtUrWbVpIF7Xte5+uHXkKkgD0wXUtgpFtr82te2KdZRsrjTIFtfYA2X5X74kYlmESTgSK9rnWGNz874DKjlwwNlY6QC2rb3OLNTqjtphUqr31KpAPS2+KlQt1Ym0ZG+gKV/+4pEkJZBEw0ogKchT0xBwrqWZhrFjp06euJtcRmONhICNxpt98BDsyWmZtA29JFj7nrgoVkmPnemJpHHJYm4A+ffHIQyRsLI4JOosbE974AZ4Ii51G+okaXte/wBsCaZGb1TxkH8Q1gj2vbAgDtK0umNtXlAb6dywB2Bxb86FG1Kw0HZhwfn8/wB9cVPihdGRfUDsE3BHXEw0szAvHN5anZVT1H5k4pAarOafwlNFA+X51BBIuldCiQeZbqb8fPFyoynwxlFO9HW54wq3UOswVyFuTaygEb8W9sfMf+RrQI1WmVWKKx13BB6je1ztxjYZhW+F8lrKRUoMwrIEp9VQElXcsF8tgQe97gXtttiuCA2XDw7EFmzTOjIg2KRwvdt+SQu3a2CRw+HJ83MSZ2q0pVX9VO+pR/Tcrz+lsL8xz7w+mWzrQ5a1LUhkCTzykhjru1r9xcWPfHqzxXlMdXX0lPRUsDOsckMjJfy1KWK9QSWB9XA77Yd+QHeZ0HhrVGctzKNSpCuskTG9/wCYHRt3+mLX/T3h6fKS9Nm1M9SgLFpVCq23GkqCMZmTPZosoSGTLaOR4wFlnaM+YCQVGnQAG3sbi/1wuoKqoopqlhUxtKyFUWpj1qFOx2O6sCSBttb3vhJ+Rm8pMp8I/BXnrB8QUBZVhN1PawG/54t5NlmTT1UgXMIBGmyq0OhjbrdrbcffCLJvGcFC1UZ6aAqqEhkhCjXpAtY3vuL2B798Z/PPElTmUUt6hKJZrSRGni8kgKLfiseTquBsRp98Jr7Gmb3PckpCmumqacVERDfw7qJEJG1gbXG+EsVBFFUP8TVxxanshkVnCrbfbrax+pGEnhfPWy6vaiqqwzCsiszzyaiArcr/AEk9flxhxm+fwZfn1HNSOk8Uauzq7Aqb+ne/Ybj3HXAo4sLzRLNMr8OiO9HmMTSpYFZIj6/dSB9sL/GGWZdl3gp6rJa9anMxJGoEaq1wT6tKEX2HXFOo8Wk1c9qGmLMwEQsEDAj0gb8knn2xDPfHGZZjRLSyZHT00mnzC3w4ubNYH0kkDf3wBkT+FpGqM4lps+l8iniCRmcx+mVtT3dPQNradrdL9cbPKsp8PNNNUV2c00tJGQieWml5CRe9tOoD6cjGIapnl8qZzCYB/Ekkja9l457HfbnbDHLfF1RTV8b1OV5dmCOhUFkAU73Ui252+3PfAiX4HWZ0mQRZjGtNm7tSEjXeBtS7gWB07/O2KOc1Phry4pMprKlGclLNG5G1hquVFt9wffjC2h8WmCsi+KymhmQ6phC6G4uSAL2vYE8E/wAuKVb4niqaRyuXQCqSQ+Y6tYaCAAALWAJDNt3w/wBBf4OBV0b5ExFJUCrQjVIaggbjbbTa19re+NTlFT4UokWTNcypvMnTUsTqxC3B6j8xjBUGeZalTIM2yuUwyQmGMxvpPn7nUSOltrf5xTynPBJVha+ZIoPKYkou5Nr2+v3woRku7Lbi+qKdDXOuX2qA6lmHmKjbsdydW3G3HT2xw1MuYSmClhjSH8QKgkgDfYncYXvBPUVHmtTeUxUFrtfX1ucHMTBPUPTaxAO5GOc1wGr8xnqJno6GlDzxXjkMpaR7He5Fj+Q2P2w0ybw7MV+MzFo53cBo/MkBSIW/FYc/K/64oQU8mR5jPUtUkNOFWSMN6lUWO7gbE9DxuN9seSqpoofhY2ZXZf4SO91C3NgG4Nr78dcWkybQKSohidqqeokq6RnujgXGi+1gSfTtfra/XA3nbMc3XRmDU4eNjDqQEhQB6QRwDtzxbtiWWCqyel+FlokMKqQNBubb7kHnvYHC9q+lhiq8yj1+bTWVl2jCgsBrUfIk8W25wrp7RyVN9mnqPiZqWIxUZggUFVLSIwIvew4B+5wtmzCmp3Xzpy0yyBNiQIwRe54sANj77Y5JmcE1bUCnmieKCQlVkEYZgdrsQBfc8k84jlmWV1TNXyqraKudXAiXWqKLfzKxG+/N7Yt5IWMDGOGumkZo4oaiVCAWSbdCd7WJ7d+cFmpq9ojVaWFl9JDgX67WP64KKeajdDJKrsWAFmaNjc2504UyAPkYjahpKWQKweZ2Z2J1H+QC3Y39sV6rSohQV2WJaeqWlR6pgp1gjSSwuL/fEaJruQSzTMumSKS4WxBNtVwQtuvQm3TDU0lUaEAIJVNhdGnJ3HYEdP1xm6ahWuznzampFGxtqWEgyIQbGy3bY7Dcb3vviOy7OPQVVTG8whdaZEMcghOvSSSN1G5BB264uiGmgipKNRCksS6UmjYh+7ahxYkDrtg/imuyXLKOSODMqieoQKGYbgBzYWAGm4sftirT06x1K1U8slZAAFabVp0g9AOw7AAYHaGsnKGF4cxISMOkhCsztZFFyTf23vt2wtaso6XPHpoYBHAygSEvqLEm452AA6gXPFsW/EecsrmDLqctHoCl9BIW433tycZigpmqjUmR7uoFr/hYno3UD5b4aaCuWauqo381o6WMSSSyCRwG16rgHbjcb3uB8u9XLpagyzxwSTepjOz7ALY3IvawAO2+2A5nUSwmmpYVaF1AIMZtoB245399/thJWfGUs8op5JooW0qSrbOttwR87YNwJH0CHLkqmFHTtFFOkLlI5dQkDKLiM8jffc2H0xnqevNTAsiKnqUarNcA7ggHrwR72xCozrO/D8s9dCsE6jy/iLFZCq3swIBuLr1wwWuWtqZKGKenWmUjQkShzoN/UBz/AIvjOXNBHiyJzdGjkTMYBKzAFXjuCAFA0kXFwbex3wwfMI6zIo4ITHS00W/mLH5qr10m9iNydjipPlyTw1tRSyRutJEZ5IGFjoAuQD1Nr7H88KpKqWnmhroaeRYzH5gjtpMgK3sbbG4733Aw6Yriy+8TBvJCpLM91j+GLeoj/wBem2++2CQeHqHIKpJaovWSO2pNJb+H1vpttv3uMZw5rX5mvnU6+UUlDajqWUW5TUDsDfDfL2zGpYzrLLEoJMgdhITYc3PNu2+IUYqTaWS7k1V4DVsQmqGNOmVRx1AMcjVCksEJ/luosQR0/LFzL6mfKMujjioKUoGaNSJCNT83JDC5ub/XHv8AmXqyrmroZDYWGnyyPpfbBspztqXz4UiDSecRKy1IGptuARxYgfTGkXXRLtqhM8+d1uXtFmEM0x17xu6oSL82LXUjttjtFlMUFUalUqqaRCNDLIun321bH3wZk+NYVcWXVySTsztIJAQ9zfYHj6Ytx08caKWy2taS1ryyoyk99JuMaPVuO2l/MmezN2/6MHlr3YvBROYlU3MrBxsb3G/ItipQzzrWVQjNDTu5QSAQj1G3pICqQT/jAKPxKKCkqKFYYooaeR4tE1RpsNiRbruThJlPif4TMKkxVAo2ZV2ALHobWvuRsL2vtjCK2pJG3ytsdyeG6bM6+UtKqzga3lWPQF6b3N7HfhffFpMmfJ5hSCSF4W9QqassIwbbjSOetrjfCOr8QPWamMldVu2wJGkc7+/2wIZhU1EjNTxiEgadvUef6jityslJ0P62eOGmVWkMkhbSJGAjQje2mOw474Vy08Em9iCTuV5OKaUolkaR2aeTrclj9ThhSZXJWgmFkA5C+YPVbptexwZbsaaSoEtFFqU3W7ELqdup25OJSeHa85jDDVyU9Iy6pyV/iB1W/A5ubD8saGjEWUxJOaSOCrZ7GSSTzGCW0kabHbvbub4QV/iSnqcyqYVeNptYQypcAKg4Fz14t7YEl2Cd4oWy+LYIaEvHFB5jH+I6xC5vyW2335+eE2SeZW19R/xsJWQFXRWsFtc3UW/CCSMKcwyytyyfzCT5Ul1EgGxv09ji34YzObJMy+J1FInUpI17gj3HXcYTVs0hKKi1WTSL4uiqxWQz0iRM0BVHIHrfrdeAdhuOuLeQZvTVVClNPKIYYA19ShluTcNbp2Pywo8UUmWT0q5lTU7Rz+YPiI1JKkH+cDob74T5NT13/JLBTuiyvaMiwKnfZiPfn5DG7knHajljB7/U8G8psvylEmfQyxAljVRSDSbCw9O4FxwBgvk0hQnLZGRJz/5VlNnXvpYE3564ysrTUuZzwPSNJoX/AMtPdNdj6tr3G1+vTDZc8omoTV/jSmKtbheQBcg34N8ZxpN2aJ2rXA3j8Kw18atT1kcgPUgNfbuDhXWeFoaIgyGF7Hgfitxt+X3xZ8O+JMshytY3ihSoNzM1M0bJIeNRBHJHTFHMM+oYs0ljpY56prBrTNZQb8Lzba2IaSRWnGcnQeqhzDKaMeZPVUVHEugF20BNzYA/2x6Ohrq6NXjq52RgCWad7Wtfa3S1vzxn6nxBHmdEKSry2qXy2EhvJwd+ht/VbGjyKalqaGm8hGpYFXy2ZwreWVGxIvfc8Wv74ja/0uyEHg+WdnkMKM43Z2YsfrtgaeBvh61ql21PfWLW0rtbuMaPMs8ockyqeqSvkcqABFToQXPA5OC1niLJM2jjq5amQh0FvJjEQYe4xSj5JsU0vh41EYYNT+WwsbKS3ytgVRkNbRiQpAaqOMagQw47aedvrivnHiRcrjkbw/NE+opr86QNf8V9PTUBbDzIZoc0o0asnnqah11WeQqhHsosBthpZJbFlJQVtXGJYYkhpb7TTvpHY2G/2xCsmyfK/MKzGprnBsQNIDDa4HJ+2KXjOhzHK1WWnkYZc7WHlgDyieFPb2IH35xTwuSW/EzbHqeOpOLsSV5Ny1CknheprGq6ubM3gL8XLHm1he+3a1sKaOny2np4qqijqLG6maYabuNyQvf34++LGVZtqjSOT0SAWsODbt/jFeVK/wAQ1si0mksinQkl1MrE/hUnYtbgEi+FN3CofIqOHnge56JTT5lDTUkD08gGtVUhoid7km9xzY9PbGLTJqjyA+hTqVkaMNcgHggnkg4+kNmMeeFKhaiChzRbtJLYLDVA2/Fa2hufUNu9t8IJ44pJtJBpahmPqsPK9gSODzuBb264TcWSlJGLpa+tpUeEWawt5ct/Sf1+mG3hBaCLPDPXGSV442MemwUN8vYcDvvhpWUkLkQV9N5cltpL7kdww5H5jCybJKijkNTSt54S7WtZgLduv0wU07Q+VQzyWnc+Kqhq544wVKwztIRrUncflyNvtjZ0/hzK2p5YoUpGhmQIyufNJ3vubg2x8pmzljLEzwOksTXBU3BB5HQ4ZweJIDzKUP8A7qRhp5CqSRtM98FZFTZNUzw5csUwUrCRI4XW2w2vb/5jGx5HTRqkM9SVYsEDbJ9Bf/OC1WfRy5dL/wByrqq3AD3434wlGYQ5hKFzZ5RFEfMjESXN/wCk36EdcYa2nqaklsdJcnRo6stKL2SpsbpWwV/iiozLK4jJKgCjzUYeQQui4N7GwHGJeJcumyyiovIklVWRlcxyFbsN97cmx/thLlMMCvVVaCWmCRuVczeYA1thpsCTvzwMChzCpzlWqcxnM7JdVuBZQBfYDYXJx0ydRcTlUfepHpDLLYSSzeg2/wDO29++BNHG6gOYzbUbM97H88WRTxXICqCRsNOCiNASD6R77Y5/d9nSnH6K0UkiKY4JWRGsCEBAG1u2NFkeZstgZDHPEADb+a3DDscLEVIjpN2B3sRf9MGahnlFxG8YPDNddv1w1ZEqZY8SZzLVwMjzPIdYLgtfYdLdN/0wkopZah/KVdTMbDp+/nhvTZJQAF6qVpN/wINN/wC/6Yb09KfJAoqWOkgPEkg0hv7sflfGqV8jjOMYONZfZbyrwVLGA9XL5ksgsIIySLHn1ck/L88ezTL48lqoYEpr6jeVRIWHYLcnnuB3xzKK2iizkRLPUTVEUY0TuWREJG4C/wAux5Y29hjR1KU5py0/liPYHWdiSbAe9zxbEyhfDJjOuVZ//9k=",
+  katolik:"data:image/jpeg;base64,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",
+  milliy:"data:image/jpeg;base64,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",
+  minor:"data:image/jpeg;base64,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",
+  mustaqillik:"data:image/jpeg;base64,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",
+  navoiy:"data:image/jpeg;base64,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",
+  paxtakor:"data:image/jpeg;base64,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",
+  teleminora:"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAAAAAAD/2wBDAAcFBQYFBAcGBgYIBwcICxILCwoKCxYPEA0SGhYbGhkWGRgcICgiHB4mHhgZIzAkJiorLS4tGyIyNTEsNSgsLSz/2wBDAQcICAsJCxULCxUsHRkdLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCz/wAARCACQAJADASIAAhEBAxEB/8QAHAAAAgIDAQEAAAAAAAAAAAAABAUCAwEGBwAI/8QAOhAAAgEDAgQEAwUGBgMAAAAAAQIDAAQREiEFBjFBEyJRYQdxgRQykaHwFSNCYoKxJDRScqLRM0Oy/8QAGAEAAwEBAAAAAAAAAAAAAAAAAAECAwT/xAAeEQEBAQADAQEAAwAAAAAAAAAAARECITESQSIyUf/aAAwDAQACEQMRAD8A7NasXUA0Y0BZNhml9m3lBzuKewXUbxBds1fKZ4UKfs5DdMVYkBJJx0GaOlVckipWkRZ9WBoB3zU6ajwkjtCxwXfp7D1oFtGd9qacRkDsQN8bUllUk0ceyrw1RN4iny5xTSxuHlcBiSOgzSgFgukjINNOGwkqdJ3G9XznRcfSvmridlwzjHB47yXwi0xk1lTpC6Su5HTcj8aZjD7g4rWOauZOCxcZ4asvELYyW8+ZBnVoHv6bjpTiG+iuI0mgmSaJxlXRsg/WsZFmUjs8ek9hSbiVqCVwMepppHOGXrQ10wb3rThbxqbNLraM9KYqTGtUwIC3oKJlQsm3SnbtEmBZrogYBr1nITIDneh5ULORnA9aLs4ABkU7JIUMpCBHnVvSPiLPL5YyM+p7UwfxGBUUDPbyROCe9TwmU+Sq2lw+Oxo1JWVvKaVxSaGyOoo+1lEj5Yj5VfqTKOR2TJGcVMXTRBhpOluvvUopYhHgN+NUTEHcbis1rfFWXvVM8Y3xVMTgSd6bQ28c0QOd/eleh6Txxs8nQ4HtVXGb5+G8C4hdRSaHhtpHDE4wQp3rYJ4EghxjJxSC/to7m3mtp08SGZGjdT3UjBH4Gn9fQzHzJNxqR2LKg0nfLucnPcgDbNdb+CVweJcP4pC0jhYpozoZshNStuPnitG49y1Fy9xWbh6MHiQ6kdzlmU7jVt1xtXZvhjyanK3LEkjaRdcSInkbVqwuDoUAdAAfxJqLcP01uV+zsQp2FBPOxzvTS+i3O+aVeFliK14dpqcErE9zTCORiukjrQtmvhyZIo9yDg7ZpUQDcKTIMVfb6gu+1ZaM69VZLkjHYUehHxtMm5o1LI3qE7gjcUNDwya5KygaU65PcU6tZQr+EkZz8+1K9eCNGz61ZCzLICKhEFm2U4ai1hET6S4z1xWsSsE5UeZvN7VfFNletLHbznBqyGUg0rDhmCAem9OOHyGSLJZQFPSteSY0VbzMG9jSs2CXs+uV8VBp3pRNbtkkjGKNhvYQmGZgwqFw4lGQ3bAIrCbGnrhfO8bLzVL40aRuVXUu5xlCc/n+hXbeEEvwSxwcj7NF/wDArifPokj5xu0mm8cjTpOjBClMgYB7etdf5QnnPBbFbueIs0KYKIVwNIwNye3eqstnSZcMLi2cqTpOKXNCFk36VtM2RCQBknakFzFpkIOx9DVcPcFSRItI0Lk+tQCZk32qyDCYLAhavfQ7DwxqJ/KgRF4AY89vWhI40jmLz+ZR0ANORLottEiAHH0pbLHE6EoSx9AKXGirBxNI7cxrnPYUTw6WMKWJwT60tt7dYpA0h1e1G3FxC0XkAXai55BGmRsUbI6irQ7SuSWwaqEbdcVIEg9K11K9UGMtV6FUz5Cat4e8GhhOPMfunH63r05GSEXAo0YiHCvv0+VEeMhjA04PrQec7EZNERR5XABY9vajJ+ktgzIwA65wM02ghV2EUh0N6GlA1wscg5q+GWaSXyt5ztvuKnlNOXHKPiVEkXPN4oGcaF6Z/wDUK6dwfVb8G4XOAP8ALxMB/QK5hzjb3Fxzhfm7mheSN9JcbDZAACM/Q/KujcrW/EJuVbKW5aGQNEGQxnZY8DSp9SANzS4chY2hOMIVGpMN86FRln4kryY05zudqjDDEkGXzqPfHWsyXAuFWBIwqj0FHUvQ7/RV8I2cBCuw3wahDNCkpADH0B7VQYTb7hsg1kRCQgofOe1T1ihEyiZ/M50/Kl8x8BiqElT3o8286JqcqPbO5pfcuTtijiKlBG9w2ACT7Vfc2ccMW8mpu4HarOGmRomRW0ADYVG5JjVhqJqb6c8a/Gilctvmq3SNGwDk1EykDAqvVnrWiRUbiJshQdu9ReVnP/VUj60VbOYXD4yR6imFSBlySvXpmroZnVsdPlU7i5jnJYrpJ9OlC68Hy9qc79Ixe4yvQ/Otb5x5kuOB8ID2cWu5uWMUZzgJtksabxyOxw2WrRfi1czjhvCba0geW4uLlwqIN2wg+gFK3IPWkTcV4sQc8Qt0z1UDOe/XG9bf8PObeJw8T/Y90Fkt71so6HZJAvp6EDf6GueNwLjLAmSeyiP+kzEn5HAxTjkRr/hHxD4It7CBHNcaFdG1xsdJ29jUTnKfzY76glCBm1aT096uhkVQcNg9ajLOsu/T0HQD5VVJJAqqUVtWN8nqav0vBbNORlwdHTJrEVw0Mvl8x7YqoXkzxhOqjoMdKvj+0IBpiwR08u9E4/6NHRf4iMmVmUjvUYrGG4Zm8xQdDjANBmZ5cBpMHuT2oxOIw2lusaapdI69KnMPdZLx2uoDIIO3pQct14zELg/Sq57uS8lyVwvt2qUbtHqCaVB71MmenrX/AA89qyIvamv2SNUBEhyfUVU0SgEhhmmAaqVOwq6OMnttV8Vsr7k1KTCbKPrmnoDNGFBG1VGMZ2o1YvEHbNZZETZjuKNAMQ5TIyDQ9/wmLiNk9tOMlh5HGMocYyD26/gTTEvH70NfXccFoQCA8p0Lv17n8gTReXXYkc+blwaz+8jVwMbKDj61sfJPKkEEd1xGQxtcK+iMHonqRnoTkjbt861rmjmyHlopJJA9w0pKpGmB0GSSfSnfIXMa8YVpGga1Sc/dLZ8w6EexFYcMl1py7jbxbuXA6+gFEG0MLnxFIYds1JrpI8GI4I796Fnu3lOS2c11bWOC45liyQQM+1GR8XOCSik4xk7Umid87USHVW8+COtRcOCPF1swaQBXOWwKruJIVUgYbHShZ5/EOEwooNi4Oc5p4BT3LsMFyFHQZoYzOT981UxZm+deARcYyx75HSqhHErK7YUEVgwKF8xbV27VYqxK5LE57aTisySjGWYsfnms1MW/D5pehVR6npVU1t4LbyavkKyL2QLpBOPSppc6RnGTS7ClEGcjI+tTaKIRlslmrJinn86IqqfkKsWJVXS7gN65oMvYEfw0v4pP4dtp6Z3p01srEkt09q1bj8pe4MMRBP3R9Nyf70uV6OeuRc43LcQ5iePYxwJpAJxkkMSfyH4Vt3LtvLwe0sCWzHdQieJvTfdfofyIrTOKx54zcMAvm33ONWz117h/AxxP4c8O8HBuoYBLCB/qBOV+o2/Ci8f4wpe6eW7m6hSQdHGaIMHhgEtv/alPJ3EYpYHhlGTjWmdseorYJYda+II20Z6+tOciwMw04bqMVU8uvZaI1q2zZ0jtVRESjC7Z79arSVrGWBzt9aiLcE7vVyMC/m6Vg6SSFGaNCtkUbR9PU1ZlEjwOpHWsKFwQ7Bce1Y6DX1X3oCzWWO2alqIGC2Kte2kDHyHFUlGUnNTqmDpB+9mpKVB3JFQK+1eK0Bes4QkAk+9Yd8nZiR+dD4PrWd/WgDI7uOC3keXzYGcdzWoph7bil/Jv4ULRof5m6n8P70z4xceBYNvu1AcVi+wcnyxH75Ua/wDcTk/9fSpvZxyHiSE8QlPhAhgD167P+v1t2/k8xLyfws5YN4O+k7A6jXE+KxKvEJAYmPlQk/0v02/Wfx7DyidPKfDh0HhdPTzGtL/WIntCX8f7F5lW6hX/AA9w3iAdg38a/Xr9a3C5vUktozbtlCoOcUm4taLxHhzwDAkHmjPow6f9fWguBXjT2JhbIeI4IPUD0+hqP1Rrr1NuSakhDuMggVUBjNWxNCB5kJPzqiTKKEJOP71FnKx4BOOu+1ZMsajyjBHtUXn1qBpUY70BUTqJPWsk7fxVZK6FRhvyqOTo8x8vbFMjxYbdxsdPzOaw0CHYSLntha1q05s4Xexl7W/MwX7xVGOOvXAopeYbID/OoP8AcCKz7VsOvsigZaXH9NVG3iOf3v8AxpUnMtq12YluoSgjD6/FG5LEY/4k0R+3rQAlru3AUZJMq7D8aXZ9CjbLvh1+tQMCj+ND8q1m6+JnBbWa4SSQzCJgFMC6w405JB2Gx261RH8TuE3N3HbwWd3I0jBQcKoyfrmnlPDK4j+3cwRwjBithrf0JHQfjj8Ko5xVm4KkK41TzKgx360r4dz1wWxvruK8eeOZ5fNN4eqPA6DY5HftWOIc58t8V43wu1h4vbssVx4kjMSqjA23IA60rpeOf80okXM97GHdRHJoG33cCQev6/t1TlGMHlHh+Af/ABnr1+8a5FzDxFbvmK9liXxFaU48oOoDXvt/uH669I5Z5k4fZciW9zdTGNLeNterGchyMADqSela8rPmYjjLLdbb4Q6YNJLuH9mcajuhtBdHTJ/K3f8AHr9DWjXfxnxApteFr4pYgrJL0G2CMde9Gv8AFDgt9wApdmQXZVdUYGBqwTqBO2xGMe9Z6exvt5cWvD4DPeXcNtEDjXK+gZ9N6Unm7l7xNA41Z51BciTbJ6b9K5hzN8QbLjvC4rRrecSQoRiTGC2k4Yb7dd/WtKXi7pK8hRHZ10nVuemM0+y19MJIlxAk0UiyxOMq6MGVh6gjrXsH0NcV5J5/j5cc205nfh8iD92xyY5O5X+X1H167VtcXxdsPCXx7OSOZXKyorhgB6q3enuDY37URWTMSNxXMOO/GFVBTg1sSM4Es64z/T+ulef4v20/D5Yhaz21y0Z8OUEOFf3H5UaNj//Z",
+  uspenskiy:"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAAAAAAD/2wBDAAcFBQYFBAcGBgYIBwcICxILCwoKCxYPEA0SGhYbGhkWGRgcICgiHB4mHhgZIzAkJiorLS4tGyIyNTEsNSgsLSz/2wBDAQcICAsJCxULCxUsHRkdLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCz/wAARCACQAJADASIAAhEBAxEB/8QAHAAAAgIDAQEAAAAAAAAAAAAABAUDBgECBwAI/8QAOBAAAgECBQMDAgUDAwMFAAAAAQIDBBEABRIhMQZBURMiYXGBBxQykaEVI8EWQrEkYvAlM8LR4f/EABkBAAMBAQEAAAAAAAAAAAAAAAIDBAEABf/EACURAAICAgIBBAIDAAAAAAAAAAABAhESIQMxQQQTUWEiIzKR8P/aAAwDAQACEQMRAD8Avqtpxg2YYhRm4IucSrcj5xdQiwWaO5NsClLm3fDz+nNIga/OCocmgAuw1H5x3uJGYNlYTXG3t5wQkXrfqjIbza18WI0SQWKU6kD4xtI0OgAoAfFsd7t9HYV2VlqQi5uAPONQCot3vhnW+7ZYmsN7gYVte/tuLc3wyLtC3oxpF/ccbLFq20kr5xEF1SqH4Pg4IpJdDFDgm/BiMpGqkqRiKSiK3IBscMkSN2vwcbSCwtzfA5UFSYpigIYFhx5w6pn0oTpFziBYQTvfE4UQi2oXPnGSeRsVRhwZJLncYLdQsO+22BYpBr33OJjUKSQRxtbxgGGhdVy+lFI8MRkdVJAtck24GPn3qvNs/wAxzE0uYz1TstnMDRNEsbEbgLxte18fRbKjNxcnxjnnXbx5xXrQL1Bl1BQUcWuoZ6kFgxcAjQDckDgfW/bE/qIuUdM2PZ0WLLJJGILAW7kYMpKFL6XcFh3tiKmqm9W7MATtc98TtWxo92spva+GNyejVQaEMJKn3Y8aiMbE6Tgc1qyrdTc/BwvlqdTMLgeDfAKLZrlQ4NTGV/UDgOeRHO2FhqGUne4840NXbvhi4xbmHtLZSNrfOA5USQWKqPtiJ52cXC/scReqRzbDFGgHICzhoaDLpJ5ZQij2g6tO5+e3ffBUNMpAkRgysAykG4IO43GBc201VB6LGP3SLbX+nnv9r4MYwUo9GARJEu6CLZbHfa3bApy9yr8G1HCyZUIa++2Jg5PIwEKm+wUH74x+YcHjThuLYOSGCyDiwGNGTUxO+FWYx1VbllTBSTCCokjKpLYnQfO2/wC2Of1FfW/h7V0wqM5krEqBvSxoRFGmr3N7iTe52tYne54wjkn7e2tfISdlh6/qM6yjLnzDLayUUgXRURIl2QG4LK1vbt37HAWW9dP/AEOjGS5NPmrqCskdNGU9JRwWALkE/J35xUuq/wAQX6jyL8lT1UsMd2MwSEq04B9qnewXudzfa4GN+k+rIekctqZdEVS09OY4isZR45FLaAS1g0Zve6m+242xI51yNxlp/wC0MrXR0X/UEvUnRtUKKP8ApOZzs9HHFWy+iwk2uQTYn2EkWF8UPq3obJOjem2qa/NZJswmjEdPCsYAaUMCxUc6Qtxc8Xv3thb0vnLz1NNRZhrnOc1bGvrakhrQadPtZj7dy5Y7G2kAjDTrfJstGZ5XPXVtfLk8ERjCsXkmazElIpHABTce8n2i45Fsa/2RyfZq0dVE/tI7/OI2nkD3Nub8Y3aFyb2xj0ios5+wx6SSJ22bf1EhQDCm22xIwO9RqOy2++PMtuNsRlcGooW5M29dmO5/nHjK47jGgW+MlLYKkDbMGZz3xgFidzj1jjWSQwxNJp1aRewx2kYV+tq5Y6+sllAL0dK9SFtqAQar2vtcgH9xiw0IlkymlSORJQ1PHVlDFpKK7ldmv8bg/wCcVb+tmozJ2hV9Mt47OQAB3IXk3tybfzi9TVS0Vf8A0pYQb6Y0dGBIB91ipNwLjtcY816nl9lirGgdYZDaxI+MSGndbkNqPbEvremzK1rgkbYjafUcXq2T6RH/AHE7afrjjPWvUEPUOb04Si1LCGSMBjqkUk2JHwbnb6HHaRIDgcZXlhq3qmo4jO8Ipy2gH+2L+0eB7jcd8I5+KXIkk6QUJJbPn+pyyvy6WH+oTSUkS0hqKcmMuvvBZUsOCzLvfi2/GLh+HmRJFnNe+ZgyQwx6a9JQjJG4OsahzpuqsrrwylSNxi89U9LxdS1mVFtKw00jGdjyYtjoHySLeACcVnrnJjn/AF9RZRQH8pLV05nrJhfS4UnSzKP1FQDb5YeMSe0+N3V/H2OU7Qozv8Ws2lztajLVjgokJEEE8auG5BdxyCdrAEAAdzirh+o+sM8mromqa/M1BlJjsGVAADpGwAFwLDm/fHQs/wDwrgqM7y2oypUgpDJGlXESfaotd17m9rEeTfi9rtknTmVdPGpOXUiwmpkLseSATcICeFHYYJcPJN/k9G5pLQzdjuBgdmN+d8SuRcgHbEegnxi+K0TSZERfGum+J/T+mMaMHYshAIx6x84m0bY9pxtnEBXY/GF9dmFOtPJHG6u7KQPA+fP7Yb6MU/NEjkmqv73piWQWbWFFg+okfUADCeWbitDOOKb2DwwRwxQxvpd1fZgNBY7sR3JsLm23GL/+XE1cKkKtRLDMupoWuxZRfSVNm4Pa+KGjQmcN72WSoaVCqEKCy6SLnnY9hjoH5N0qhLJC0hFQ9Q5js2pjHot2Ki2/BxA1LsoTh1YLMt55Df3FixXcEXPg74jCYNFlpFgM7yenDGiq5J9y3uQDuNrftiEJi7hm5R2T8kUnoiC42C4l0YyEw6wEiMLiA5fTtmceYmP/AKqOFoA4P+xiCQfuP5PnBqxMx9qk4nSjdjYqb4BteQ0mDAeTjYWHYYPGW7XZrfGNloE/3Mf2wOcQ8WK10uNSm4v3FrHx8HHtNsR5Nl0FHlUUUFS9QhJb1XFi5J3Nu307YN9FRyx/bA8c24py7MnGpNIG048EwT6SeWP2xDV1FPQUj1MytoTtfdj2A+Tg3NJWwVFvRr7H3QggbG3kYysVzyPvtgfKqk1dBB6iqtQY9TqPNzf/ABg/0GtwBhXDyqcFJMPkg4yaaNPRjA5JPxwMc5zeCoqc9qPyhkCLUMZPTjUrIt9lLHgd9t+N8W3qtHiykSRvocSAc7Fdy23fjFDWqNRNQRzVkkhqtekD9J0j9u3HyRzgZyrRkY2NsqyCGTNGqamuipZdKK27SEqp2AF9K77/AFJx06Kro5VYxSI2rc3P7Xtzjn3RE+iKvkghZrBlYMNVtDKSDvvcPtb78YcVddk4qs+jkjlpmogNcxG0baVHsGwFtSnwT57ocvsJRd9FlqA5iN2LpYW72/8APOBBGSNhgCJ6N6pFpszmg104nEYOphudze/gi3kYc08QiiCyyNO/JewW/wBAMN4p0qMcd7BxCxPBxNHA4/2j7jBGsKNoz9zjUynsLYbk2dSRJGrDmw+2J1cKORgLU7dzjIUnucBQadBhqVA7YjarB20/tiKOK53t98EJTIR7iPtjPxRqtlZr44smzOieEzBKuvkogEKSCSNUZlkJH6VJB+Rb64IoM4osyqqynpJxJJRyenLbz8eR2v5wBTZDPmdJNT1EQljNg0d0fUOdwGvbCug6Gj6V6op81jrJKWGZhTNBUo9nL7BVc/NrAk8c48703I+NKNFXPDJ5JlwvqYi264ofWtVN/X4YDSyVcUcYIQOFVSe+/fFg6cz6XNaOSuqKSajhklcAzR6FjCiwBcmx4P3P7VrPKo5t1bOuXn85GkUcZaIkgEMCfrwRt5+MVTa5+NpfJPH9UrY2yjNcwjyZoP8AT7TBJFMbQSXmTm53ABHG1x3xbCp7m/3wnyiOoyqGlkrK1KaKOnMZjmbQzSamOu172swFvjGtZ1flFPqRJmnfxEt/5OA9LxrhtILmk+WmT9SSiLIalWU2ddNwuwue54GKLBNRRw/3IojMja4WA1endmLWIG1wbbYZZ11PVZzSGkgy+WOF2BYhWYm29jta17fthIuX18mvTSTDULKdIUrta+/JvvilpPbZPco6SH/SEpimq46SnlqTJrlcIApAYKLbnf8ASP3w2ehSVs6atpqoU+bussmiL9IUJte5B3TAXRcE9Bmz+v6EXrpoBkkHtsdVzb6YuLerBXUkNPBDUwOGBqmnQlCBcBY+BfybkYVLBOkwo+41tFeNPSxZxUVM7RBJKKKnjEgIb2+pdjcC2zD+cO2raLVdJ4Y0K61BYLZfP0xpVnMaCpVmpautpJNTSSi0jQH/ALt7spufNrY5b+IOTZzkvUlTmpjMVFmLCKOQ3CBWWxjIIuDbtx/OF+5htDMXJHUqDMKPM6cT0dQk6Hup3H1HbBYGOQfhNnFLQVzUlVVuslWipCoS0bG//O+LnnX4g0+SdRtl0tIzwrEz+vG2o6gNxYdgdie2/jDY8ycbYGDsepn2VPmb5etfD+aS4KXtYjYi52vfa3nbDML5vj5bmzerqc0NTVOtJMzPO8ijVsGvuvm/H2x26H8TcopMioZqwVAqZoh/bNrsQdNySdr874GPNbeQThXRZs06gyjJZY48wrVgeQEqDubfIHntgF+qIKyiklyqaB3jlMRWbZmAsdSi+4sRzjhnWvXL9T53BVmlSFaVfTVNd1NmN7E/X+cS9D5zM3U2X0pVihLKx1EhV0k3P3thT5ZuWuhiikju+bpSZZkVfUJR0TSNUJGBNGNJLSaRxuWtsB5tinddzMOh+nqynpi8cszVtVHSSkI0ccQJIJvZQSDwedsWLrecw9MRshvqzenbbvaR3/8AjiudTZxT5P0n0VS1S6YJ6Yes5W9oWjVXsLE33U7WPg84Uh76EFH+ICTZJDlZy+jWGnvIrSwPM4JuNVthffwcEx57JTUDRisq1jhRVk0QhNQtyT3J5xUKQLGJVRhIopmCuOG91gfjscPaxxDluYSNpB9BFux2vvt9cPUlQhocVEi04XRR6nZA4eVtRIPey4Bp8zRp2jmqzBI1vSWONlS997lQeb4GpMxgzmniacoXgdVAtsum9jxtYYky+hz+aWpegdREo1aJI0ZpSDcKoKm57746U1hr68mQi3Lb1vwMIsyj0wGb1WWVAwtKxv8A3NPkdt8ep5KiaikkaCMSa49N0J9rar/qY+Ab4gM8tHmVFBmUDQ1FQgGlowliJr3sNhx284LgnH5PMPZFcOvb9Wx/VgslegVFvtli6W/t1cVSKen9ZIC9jELFjG/PxcDFjzCNF6sp5XiovRSkmYmRFAR1jDe4je1iSb4q3SuaUUmaR0pqoVn/AC6gpewvoe4BOx5HGG+f5zQTVNRF60EoajkUCFkLENDYk3bcjfb4thbnGw8bFmb1WYS9E1ssaUE1ZBO6tNSL6aiLQCjgBu543/4wh68E0nVdMK2jWWhyenerqaZq302nUzSIugbb2j3A37X4xPlGY0r5LmUcUs8tGsKI6Kgj9FCj6ggYm5sgK3OxJHfC38SKujz0Coq450exnpNAQgMCytckFtNwNgR58HASkmrDUa0Veijk6M6qp611iejYmrp1gqBNIkTFgEZuzKB38eDhZW5xJOZ5hOUku9gTcknm5+e9tvjF1yir6VkyubKMwp9FDGDViTSFaWpu11uBcIQQAp7W3OEOTV/TMtdPDU9OxLA7/wBn1ZZQUUrw24udr3wu0bRScvqiLQsFOlw3uYgW7jDqaQTxWjEStoBUPsD8fbFoOYdC5ZmbJ/o+nqwoZZQk8y2JB2uzn4uPBxBW550hWTRuenZMqJQxyLTESAgsCH91jcLcC3xzgZ4tnV4KzNl0P5R5Y0kqBEEJjUjZrkHk3twLYGyySnnzimeGJojBIrOLWAsd7j98Mauqy9ax5spZzAJCUiljNwORe545HN9r98CNmBrPYIWQ2s1rE/X7/wCcCpSTv4ArwdMlzzNMwoIoKuqSeMyeoyOh5F7HcDf6WIucAZlQt1HNBHmNRSU6wOukPOFCppsdAY3ABAAG30GGmTf03OKaaTLcvqauSFrFqmVob3+gtfCnqDp3O66ZWiyD0wgtaGoEl9+Tqa98BHOT30UKN9gWZdPw5XFAYqimkMl//amEiryALgWvzYYCyzLKjP4hlsFetPUNZyXDaCFBPut/G3OFGaZbXZbV6K+jqKUsAVVorArc3NxscF0WXVGYCRKWlknkBBPpoWI+oG/jf5xzVSQFJyotdD0FXZbT1EtRmCSow/TBTu5IvfYWve/xxfEVB0bXVWZSFZGpoE/S8lBICxt4I4wop+l8yZx6uXVpAYbek4w0p+mpAq/+mzvyLlXYY16KIwS6Ns46Qzr89FI/qVJCL7oKX28nba2+38/OB36czcQkLTVcbFTpZo7AHjuw2/m9sOqXINKoGyobc6oR/kYZQZLHAfbl8EQB3YxouOz2c+Fd2c3rMsqemUR5544nm2Vi+pwTtsAWbfydtsK4a2qppiTAgeRt5A4K97X7ji+COsc6nqc2Wro669JusMdgvp8atjsQbX/wMIqepqZ5V/L6UZRctGPSsvNiQLc/XDEslZNJK9F5pGrKilqRTStDHNGBUoJdQNybXsL77+P+cLM0r6sQVDVsv5kQhYwCCBYgbA7XsAP2xavw+op84llDlp4xZzGqudW217AC4vzt8cnBv4mUcOWdMNT1FGkclQSIWWIl0K2JJubjY2vbvhcLuvBqTqzmkPUt5dDq8bH/AGAAqST/APV8NaemWpEdTH7HDXMQbWHW9xcHjffbi+KtDmn5aMehAqojEqdF2Hn3cnnucNcumoRWSStMEnkIGlG1Dfnk9z25GHSjS0AMjlcjVGoaNKy3CSSCxHIFjfawtbjY4DrKSZZ5PzGlNTrc3BFjwbjb4ttxiz5LU1cjtBSgPGBdVEYcsfNiDizw5JHPSTSZ9RwRosZdLaY5diL2UbabX5HJFucTZNyxNX5aOSVVMYav05WYqIyxCryO9xcWFt7nA8YWt1hCY7EH0h/uW3nyNtsWg5bQR1KCs1SrUyv+YZSVZE1WXfyBva2FVNQxQ1fpuBKkdgA8TFr86tNvH/ODy0c40WzJ6oULCCnrHjdn9MFHIsQOD/545xZh/XoQVXPolA3OuWJwPvbFIj9KaGOpp5DLpJI911N9id+Nu+GhRFZdYDWGxK/G/wBMTS07QUXRZBLm9Wvo1GZ5XVwkA6HEdyeRzzwNrdsEUbZlTxBqSbLljZNQRPSCkAXJ27W3vioMY44jpZdKjdreTjIUq0jyPrVlAaxsQL8fTAZP5CzX2OOqs4ziHIJ2/OU93UAJGyhpF1b6bbng/wA4n/DJ6+oy2Q1LkUiaiqMN2YgWI+Nyb8bfOOd5RUuMxQxKYbFgIwCdK34+3OO0dO0yU3StHIo0vmP/AFTbW9m6x7HjbU1v+7Dop5U/7Cir3YTUwl0uKmSADkoQP+QcIs+oKiXJZjSdQzRSxhiymRFDoV4va4N7cc6jiwk77DvgKuWKrpZKaWVVSdfTfcXsdjz42P2xRdqkE1ZxaHLYTlzx1lSaeaGUIsYRXL9jcHawBJ+22H6dHZPof1+pqSVXA4omU9uLEecJM5SRM5MUqmOWGUwzb7CRQQCR/nvhhPmZy0qkxkLFbqoGx+b/APlsJcpoQ3FNlly3KckoGkp4s9lF7azDCUU/sd/5xR+upMo9enbJswkqns3q39pvfxyD+/0HfGcdStLl4SITRCR+Sd7d8V+jWik9UPKfUa2glbqPqNv/AM+cM4ov+ckdafSAhWzflfRGlVOx07Ej584Y09KTStHGITId1KEiS43O3ffbEopvzEsRmnjkEq6rMALAcjV9dr2++CEpqmmmSSljpoCqJeSNuSdiLk/TFDkgS0dK5vm2W5WYqSWKAbO0YTVc/I2Iv4+MMaivzLMnWWoq5hbZCkQQDfccHFbhzKXL1ikrLzuL3IawO4uxta/OH8VZJLTiZJJCHuUbyPPxwcefyuS2Gp0qIXoQsaSiHU8QsGYm58m2PFqhQCVdgRvc6ftiT1p9H6njJHZvriE/mCARUO0hHOwsNvOE3fYLaZ//2Q==",
+  xastimom:"data:image/jpeg;base64,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"
+};
+  /* Toshkentning asosiy ramziy joylari (nomi, izohi, koordinatasi) */
+  /* Koordinatalar OpenStreetMap (Overpass) dan olingan — binoning markazi */
+  const LANDMARKS = [
+    {img:"teleminora",  name:"Teleminora",          sub:"Toshkent teleminorasi — 375 m",        lat:41.34568, lng:69.28482},
+    {img:"amirtemur",   name:"Amir Temur maydoni",  sub:"Amir Temur haykali",                   lat:41.31118, lng:69.27976},
+    {img:"mustaqillik", name:"Mustaqillik maydoni", sub:"Mustaqillik monumenti",                lat:41.31643, lng:69.26680},
+    {img:"xastimom",    name:"Xast Imom",           sub:"Hazrati Imom majmuasi",                lat:41.33747, lng:69.24126},
+    {img:"minor",       name:"Minor masjidi",       sub:"Minor jome masjidi",                   lat:41.33549, lng:69.27524},
+    {img:"chorsu",      name:"Chorsu bozori",       sub:"Chorsu gumbazi — eski shahar bozori",  lat:41.32678, lng:69.23511},
+    {img:"katolik",     name:"Katolik cherkovi",    sub:"Muqaddas Yurak sobori",                lat:41.30560, lng:69.29599},
+    {img:"uspenskiy",   name:"Uspenskiy sobori",    sub:"Pravoslav bosh cherkovi",              lat:41.29083, lng:69.27883},
+    {img:"paxtakor",    name:"Paxtakor stadioni",   sub:"Paxtakor markaziy stadioni",           lat:41.31549, lng:69.26028},
+    {img:"milliy",      name:"Milliy stadion",      sub:"Milliy (Bunyodkor) stadioni",          lat:41.27976, lng:69.21261},
+    {img:"navoiy",      name:"Navoiy teatri",       sub:"Alisher Navoiy opera va balet teatri", lat:41.30922, lng:69.27152}
+  ];
+  map.createPane("landmarksPane").style.zIndex = 610; // popup(700)dan past, markerlardan baland
+  const mapEl = document.getElementById("map");
+  const D = 46;                 // doira diametri, px
+  for(const lm of LANDMARKS){
+    const icon = L.divIcon({
+      className:"lm-ico", iconSize:[D, D+20], iconAnchor:[D/2, D+20],
+      html:`<div class="lm-wrap"><div class="lm-ph" style="background-image:url(${LMPHOTO[lm.img]})"></div><div class="lm-tail"></div><div class="lm-lbl">${lm.name}</div></div>`
+    });
+    L.marker([lm.lat,lm.lng],{icon, pane:"landmarksPane", riseOnHover:true, title:lm.name})
+      .addTo(map)
+      .bindPopup(`<img src="${LMPHOTO[lm.img]}" style="width:190px;height:120px;object-fit:cover;border-radius:8px;display:block;margin-bottom:5px"><b>${lm.name}</b><br><span style="color:#777;font-size:12px">${lm.sub}</span>`);
+  }
+  /* Zoom'ga mos masshtab: z=16 da 100%; 35%–115% oralig'ida o'zgaradi.
+     z>=17.5 da belgilar yo'qoladi (binoning o'zi ko'rinadi — Yandex/2GIS kabi),
+     z<13.5 da esa faqat yozuvlari yashirinadi, doiralar qoladi */
+  function lmScale(){
+    const z = map.getZoom();
+    const s = Math.max(.35, Math.min(1.15, Math.pow(2,(z-16)*.5)));
+    mapEl.style.setProperty("--lmS", s.toFixed(3));
+    mapEl.classList.toggle("lm-far", z < 13.5);
+    mapEl.classList.toggle("lm-near", z >= 17.5);
+  }
+  map.on("zoom zoomend", lmScale);
+  lmScale();
+})();
+</script>
+</body>
+</html>

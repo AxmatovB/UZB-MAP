@@ -1,0 +1,13 @@
+{
+  "name": "toshkent-interactive-map",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone offline-first interactive map of Tashkent and Uzbekistan's administrative boundaries, districts, and points of interest.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "undici": "^7.24.5"
+  }
+}

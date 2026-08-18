@@ -1,0 +1,4 @@
+node_modules/
+prefs.json
+tiles/
+.DS_Store
